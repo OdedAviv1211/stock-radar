@@ -1,0 +1,175 @@
+{
+  "generated": "2026-09-29",
+  "note": "measurable = הצעת מימוש שלנו. כשכתוב 'סף לא אומת' המספר אינו מהמקור הרשמי.",
+  "methodologies": [
+    {
+      "name": "שיטת המיכו (מגמה לפי ממוצעים 150/200) + ניהול סטופ",
+      "person": "מיכה סטוקס (Micha.Stocks)",
+      "sources": [
+        "https://open.spotify.com/episode/3Nx6JndLzIbTdUdx5XLD8P",
+        "https://podcasts.apple.com/il/podcast/id1707589009?i=1000732384868",
+        "https://open.spotify.com/episode/7ujmEa8jHtoV3npmtrTF3L",
+        "https://podcasts.apple.com/us/podcast/id1707589009?i=1000755348970",
+        "https://www.michastocks.app/community-course",
+        "https://open.spotify.com/show/2rmJHgErWQb4M9HgMeUglH"
+      ],
+      "principles_he": [
+        "לבחור שיטה אחת ולהתמחות בה עד הסוף, במקום לערבב שיטות",
+        "ממוצע 150 הוא 'המגדלור' לזיהוי המגמה ולניהול הפוזיציה; ממוצע 200 הוא קו התמיכה הבא אחריו",
+        "סטופ לוס חייב להיות מוגדר מראש, לפני הכניסה",
+        "מנהלים את העסקה ולא את האמונה במניה",
+        "להתאים את הסטופ לתנודתיות של המניה (ATR). מניה תנודתית (OKLO) שונה ממניה יציבה (AAPL)",
+        "מדד חוזר תמיד, מניה בודדת עלולה להיעלם, ולכן במניות בודדות חובה לצאת לפי תוכנית",
+        "תוכנית המשחק כוללת התקפה (יעדי מימוש מוגדרים מראש) והגנה (שמירה על ההון)"
+      ],
+      "rules": [
+        {
+          "rule_he": "שיטת המיכו: לעבוד רק כשהמחיר מעל ממוצעי 150 ו-200 והמגמה עולה",
+          "measurable": "close > SMA150 AND close > SMA200 AND SMA150_slope_21d > 0 (הצעת מימוש; התנאים המדויקים לא מופיעים בתיאור)",
+          "status": "partial",
+          "source_url": "https://open.spotify.com/episode/3Nx6JndLzIbTdUdx5XLD8P"
+        },
+        {
+          "rule_he": "שבירה של ממוצע 150 היא אזהרה, ו-200 הוא קו ההגנה הבא",
+          "measurable": "alert if close < SMA150; severe if close < SMA200",
+          "status": "partial",
+          "source_url": "https://podcasts.apple.com/us/podcast/id1707589009?i=1000755348970"
+        },
+        {
+          "rule_he": "מרחק גדול מדי מממוצע 150 הוא 'החלק הקשה', כי הסטופ הטבעי רחוק מדי",
+          "measurable": "ext150 = close/SMA150 - 1; warn if ext150 > X (סף לא אומת)",
+          "status": "partial",
+          "source_url": "https://open.spotify.com/episode/7ujmEa8jHtoV3npmtrTF3L"
+        },
+        {
+          "rule_he": "סטופ מותאם תנודתיות לפי ATR",
+          "measurable": "stop = entry - k*ATR(14|20) (k לא אומת)",
+          "status": "partial",
+          "source_url": "https://open.spotify.com/episode/7ujmEa8jHtoV3npmtrTF3L"
+        },
+        {
+          "rule_he": "סטופ לוס מוגדר מראש לכל עסקה",
+          "measurable": "כל כניסה חייבת stop != null",
+          "status": "implemented",
+          "source_url": "https://open.spotify.com/episode/7ujmEa8jHtoV3npmtrTF3L"
+        },
+        {
+          "rule_he": "יעד מימוש (take profit) מוגדר מראש, כחלק מ'ההתקפה'",
+          "measurable": "target defined at entry (אחוז/R לא אומת)",
+          "status": "partial",
+          "source_url": "https://open.spotify.com/episode/7ujmEa8jHtoV3npmtrTF3L"
+        },
+        {
+          "rule_he": "שיטת הממוצע הקצר (20MA) לטווח קצר",
+          "measurable": "close > SMA20 AND SMA20 rising (הצעת מימוש)",
+          "status": "missing",
+          "source_url": "https://open.spotify.com/episode/3Nx6JndLzIbTdUdx5XLD8P"
+        },
+        {
+          "rule_he": "תמיכות והתנגדויות",
+          "measurable": "pivot = max(high, N) / swing lows",
+          "status": "partial",
+          "source_url": "https://open.spotify.com/episode/3Nx6JndLzIbTdUdx5XLD8P"
+        },
+        {
+          "rule_he": "קווי מגמה ופריצתם",
+          "measurable": "linear fit on swing lows/highs; breakout = close crosses line",
+          "status": "missing",
+          "source_url": "https://open.spotify.com/episode/3Nx6JndLzIbTdUdx5XLD8P"
+        },
+        {
+          "rule_he": "תצורות טכניות: כוס וידית, ראש וכתפיים",
+          "measurable": "pattern detector",
+          "status": "partial",
+          "source_url": "https://open.spotify.com/episode/3Nx6JndLzIbTdUdx5XLD8P"
+        },
+        {
+          "rule_he": "פיבונאצ'י, 'אזור הזהב' (תיקון של 50%-61.8%)",
+          "measurable": "retr = (swing_high - close)/(swing_high - swing_low) in [0.50, 0.618]",
+          "status": "missing",
+          "source_url": "https://podcasts.apple.com/il/podcast/id1707589009?i=1000732384868"
+        },
+        {
+          "rule_he": "צ'ק ליסט 20 לניתוח מניות לטווח קצר (שם בלבד, התוכן סגור לחברים)",
+          "measurable": null,
+          "status": "missing",
+          "source_url": "https://www.michastocks.app/community-course"
+        }
+      ]
+    },
+    {
+      "name": "השקעות ערך: מניות במכפילים נמוכים, אסטרטגיות מסננים ותיק רובוט",
+      "person": "ד\"ר ינון אריאלי",
+      "sources": [
+        "https://valueinvesting.co.il/course/אסטרטגיות-השקעה-מנצחות/",
+        "https://valueinvesting.co.il/course/קורס-השקעות-ערך-במניות/",
+        "https://valueinvesting.co.il/about-us/",
+        "https://bursa4u.com/",
+        "https://bursa4u.com/המניות-המומלצות-של-פרופסור-פיטרוסקי/",
+        "https://bursa4u.com/4-מניות-אטרקטיביות-לפי-שיטת-ההשקעה-של-פי/",
+        "https://bursa4u.com/category/il-robot-portfolio/",
+        "https://podcasts.apple.com/il/podcast/id1557021571?i=1000525687300"
+      ],
+      "principles_he": [
+        "לא צריך להיות גאון, צריך שיטה חכמה והתמדה",
+        "מניות עם מכפילים נמוכים מנצחות את המדדים לאורך זמן",
+        "לבחור מניות זולות ולא לנסות לתזמן את השוק; לנצל מפולות",
+        "לזהות חברה איכותית דרך הדוחות הכספיים, ולהמיר רווח נקי לתזרים מזומנים",
+        "הערכת שווי לפי שווי נכסי, מכפילים יחסיים ו-DCF (תזרים מזומנים חופשי)",
+        "לחלק את התיק בין מניות לאג\"ח ולשמור על הרכב קבוע",
+        "השקעה פסיבית במדדים חסרה, אבל יש 'דרך מושכלת' להשקיע בהם",
+        "סבלנות וטווח ארוך"
+      ],
+      "rules": [
+        {
+          "rule_he": "סינון מניות לפי מכפילים נמוכים",
+          "measurable": "rank ascending by P/E and/or P/B, take lowest quantile (הסף ואיזה מכפיל בדיוק לא אומתו)",
+          "status": "missing",
+          "source_url": "https://valueinvesting.co.il/course/אסטרטגיות-השקעה-מנצחות/"
+        },
+        {
+          "rule_he": "שיטת פיוטרוסקי (F-Score) לאיתור מניות אטרקטיביות",
+          "measurable": "F-Score 0-9 from annual statements; threshold לא אומת (אצל פיוטרוסקי במקור: F>=8 בתוך החמישון הזול לפי P/B)",
+          "status": "missing",
+          "source_url": "https://bursa4u.com/4-מניות-אטרקטיביות-לפי-שיטת-ההשקעה-של-פי/"
+        },
+        {
+          "rule_he": "איכות הרווח: רווח נקי מתורגם לתזרים מזומנים",
+          "measurable": "CFO > NetIncome (accruals < 0)",
+          "status": "missing",
+          "source_url": "https://valueinvesting.co.il/course/קורס-השקעות-ערך-במניות/"
+        },
+        {
+          "rule_he": "הערכת שווי DCF לפי תזרים מזומנים חופשי",
+          "measurable": "FCF = CFO - CapEx; intrinsic = DCF(FCF, r); MoS = intrinsic/price - 1 (אחוז מרווח ביטחון לא אומת)",
+          "status": "missing",
+          "source_url": "https://valueinvesting.co.il/course/קורס-השקעות-ערך-במניות/"
+        },
+        {
+          "rule_he": "מסנן נפרד לארה\"ב ולישראל (אסטרטגיה א)",
+          "measurable": "run same value screen per market universe",
+          "status": "partial",
+          "source_url": "https://valueinvesting.co.il/course/אסטרטגיות-השקעה-מנצחות/"
+        },
+        {
+          "rule_he": "תיק 'רובוט' מכני שמתפרסם כרשימה שנתית",
+          "measurable": "rebalance every ~252 trading days (לפי כותרות שנתיות; הכללים עצמם לא נגישים)",
+          "status": "missing",
+          "source_url": "https://bursa4u.com/category/il-robot-portfolio/"
+        },
+        {
+          "rule_he": "חלוקת תיק מניות/אג\"ח ושמירה על הרכב קבוע",
+          "measurable": "periodic rebalance to target weights (האחוזים לא אומתו)",
+          "status": "missing",
+          "source_url": "https://valueinvesting.co.il/course/אסטרטגיות-השקעה-מנצחות/"
+        },
+        {
+          "rule_he": "לא לנסות לתזמן את השוק, ולנצל מפולות לקנייה",
+          "measurable": null,
+          "status": "missing",
+          "source_url": "https://valueinvesting.co.il/course/אסטרטגיות-השקעה-מנצחות/"
+        }
+      ]
+    }
+  ]
+}

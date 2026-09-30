@@ -1,0 +1,38 @@
+name: Watchlist push alerts
+
+on:
+  schedule:
+    - cron: "40 13-20 * * 1-5"   # כל שעה בזמן המסחר בוול סטריט (13:40–20:40 UTC)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: watch
+  cancel-in-progress: true
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Check watchlist
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ACCOUNT_SIZE: ${{ vars.ACCOUNT_SIZE }}
+        run: python watch_alerts.py
+      - name: Save state
+        run: |
+          git config user.name "stock-radar-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/watch_state.json data/watch.json
+          git commit -m "watch $(date -u +%H:%M)" || echo "nothing to commit"
+          git pull --rebase && git push

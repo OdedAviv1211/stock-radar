@@ -1,0 +1,59 @@
+# מניות תל אביב לסריקה – טיקר ביאהו (עם .TA), שם, סקטור (באנגלית לפי Yahoo)
+# אפשר להוסיף/להסיר שורות. טיקר שגוי פשוט ידולג.
+LUMI.TA,בנק לאומי,Financial Services
+POLI.TA,בנק הפועלים,Financial Services
+DSCT.TA,בנק דיסקונט,Financial Services
+MZTF.TA,בנק מזרחי טפחות,Financial Services
+FIBI.TA,הבינלאומי,Financial Services
+HARL.TA,הראל,Financial Services
+PHOE.TA,הפניקס,Financial Services
+MGDL.TA,מגדל,Financial Services
+CLIS.TA,כלל ביטוח,Financial Services
+MMHD.TA,מנורה מבטחים,Financial Services
+IBI.TA,אי.בי.אי,Financial Services
+TASE.TA,הבורסה לני"ע,Financial Services
+TEVA.TA,טבע,Healthcare
+NICE.TA,נייס,Technology
+ESLT.TA,אלביט מערכות,Industrials
+NVMI.TA,נובה,Technology
+CAMT.TA,קמטק,Technology
+TSEM.TA,טאואר,Technology
+NXSN.TA,נקסט ויז'ן,Industrials
+ARYT.TA,אריט תעשיות,Industrials
+ICL.TA,כיל,Basic Materials
+BEZQ.TA,בזק,Communication Services
+PTNR.TA,פרטנר,Communication Services
+CEL.TA,סלקום,Communication Services
+AZRG.TA,עזריאלי,Real Estate
+MLSR.TA,מליסרון,Real Estate
+ALHE.TA,אלוני חץ,Real Estate
+AMOT.TA,אמות,Real Estate
+BIG.TA,ביג,Real Estate
+SKBN.TA,שיכון ובינוי,Industrials
+ELCO.TA,אלקו,Industrials
+ELTR.TA,אלקטרה,Industrials
+DANE.TA,דניה סיבוס,Industrials
+ENLT.TA,אנלייט,Utilities
+ORA.TA,אורמת,Utilities
+OPCE.TA,OPC אנרגיה,Utilities
+NWMD.TA,ניומד,Energy
+DLEKG.TA,קבוצת דלק,Energy
+ENOG.TA,אנרג'יאן,Energy
+ISRA.TA,ישראמקו,Energy
+RATI.TA,רציו,Energy
+PAZ.TA,פז,Energy
+ELAL.TA,אל על,Industrials
+STRS.TA,שטראוס,Consumer Defensive
+SAE.TA,שופרסל,Consumer Defensive
+FTAL.TA,פתאל,Consumer Cyclical
+DLEA.TA,דלק רכב,Consumer Cyclical
+FOX.TA,פוקס,Consumer Cyclical
+MTRX.TA,מטריקס,Technology
+ONE.TA,וואן טכנולוגיות,Technology
+HLAN.TA,חילן,Technology
+FORTY.TA,פורמולה,Technology
+SPNS.TA,סאפיינס,Technology
+MGIC.TA,מג'יק,Technology
+AUDC.TA,אודיוקודס,Technology
+ALLT.TA,אלוט,Technology
+KMDA.TA,כמהדע,Healthcare

@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>רדאר מניות יומי</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f5f6f8;--card:#ffffff;--ink:#14171c;--muted:#5d6673;--line:#e3e6eb;--soft:#eef0f3;
+  --accent:#2f5bea;--accent-soft:#e6ecfd;--up:#12805c;--up-soft:#e3f4ec;--down:#c63b3b;--down-soft:#fbe8e8;
+  --warn:#a65f00;--warn-soft:#fdf1dc;--s50:#8b5cf6;--s150:#e8590c;--s200:#9aa3ad;
+  --shadow:0 1px 2px rgba(20,23,28,.06),0 4px 16px rgba(20,23,28,.05);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1115;--card:#171a20;--ink:#e8eaee;--muted:#98a1ad;--line:#2a2f38;--soft:#1f232b;
+  --accent:#7c9bff;--accent-soft:#1d2540;--up:#3ecf8e;--up-soft:#12281f;--down:#ff6b6b;--down-soft:#2e1717;
+  --warn:#f0a93b;--warn-soft:#2d2212;--s50:#b197fc;--s150:#ff8c42;--s200:#5f6773;--shadow:none}}
+:root[data-theme="dark"]{
+  --bg:#0f1115;--card:#171a20;--ink:#e8eaee;--muted:#98a1ad;--line:#2a2f38;--soft:#1f232b;
+  --accent:#7c9bff;--accent-soft:#1d2540;--up:#3ecf8e;--up-soft:#12281f;--down:#ff6b6b;--down-soft:#2e1717;
+  --warn:#f0a93b;--warn-soft:#2d2212;--s50:#b197fc;--s150:#ff8c42;--s200:#5f6773;--shadow:none}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Heebo,system-ui,-apple-system,"Segoe UI",Arial,sans-serif;font-size:15px;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding:16px}
+.num,.tk{font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate}
+h1{font-size:26px;margin:0;font-weight:800;letter-spacing:-.3px}
+h2{font-size:20px;margin:0 0 4px;font-weight:800}
+.sub{color:var(--muted);font-size:13px}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between;margin:8px 0 14px}
+nav{position:sticky;top:0;z-index:5;background:var(--bg);display:flex;gap:6px;overflow-x:auto;padding:8px 0;margin-bottom:8px;scrollbar-width:none}
+nav a{white-space:nowrap;text-decoration:none;color:var(--muted);background:var(--card);border:1px solid var(--line);padding:6px 12px;border-radius:999px;font-size:13px;font-weight:500}
+nav a:hover{color:var(--ink);border-color:var(--accent)}
+section{margin:22px 0 30px;scroll-margin-top:60px}
+.sec-h{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+.grid{display:grid;gap:12px}
+.g3{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+.regime{padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.regime .st{font-weight:700;font-size:16px}
+.lv2 .st,.lv1 .st{color:var(--up)} .lv-1 .st,.lv-2 .st{color:var(--down)}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:2px 8px;border-radius:999px;background:var(--soft);color:var(--muted);white-space:nowrap}
+.chip.ai{background:var(--accent-soft);color:var(--accent)}
+.up{color:var(--up)} .down{color:var(--down)}
+.banner{padding:12px 14px;border-radius:12px;background:var(--warn-soft);color:var(--warn);font-size:14px;margin:10px 0}
+.picks{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(340px,1fr))}
+.pick{padding:14px;display:flex;flex-direction:column;gap:10px}
+.ph{display:flex;gap:10px;align-items:flex-start}
+.rank{flex:none;width:30px;height:30px;border-radius:50%;background:var(--ink);color:var(--card);display:grid;place-items:center;font-weight:800;font-size:14px}
+.ph .tt{flex:1;min-width:0}
+.ph .tk{font-size:20px;font-weight:800}
+.ph .nm{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.ring{flex:none;position:relative;width:54px;height:54px}
+.ring b{position:absolute;inset:0;display:grid;place-items:center;font-size:16px;font-weight:800}
+.prow{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.prow b{color:var(--ink);font-size:15px}
+.chart{width:100%;height:120px;display:block}
+.legend{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11px;color:var(--muted)}
+.legend>span{white-space:nowrap}
+.legend .meta{margin-inline-start:auto}
+.legend i{display:inline-block;width:12px;height:3px;border-radius:2px;margin-inline-end:4px;vertical-align:middle}
+.bars{display:grid;grid-template-columns:auto 1fr auto;gap:3px 8px;font-size:12px;align-items:center}
+.bar{height:6px;background:var(--soft);border-radius:4px;overflow:hidden}
+.bar>span{display:block;height:100%;background:var(--accent);border-radius:4px}
+ul.rs{margin:0;padding:0;list-style:none;font-size:13px;display:flex;flex-direction:column;gap:3px}
+ul.rs li{padding-inline-start:18px;position:relative}
+ul.rs li::before{position:absolute;inset-inline-start:0;font-weight:800}
+ul.good li::before{content:"✓";color:var(--up)}
+ul.warn li::before{content:"!";color:var(--warn);inset-inline-start:4px}
+.mcha{display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:12px}
+.mcha .m{padding:1px 7px;border-radius:999px;background:var(--soft);color:var(--muted)}
+.mcha .m.ok{background:var(--up-soft);color:var(--up);font-weight:600}
+.plan{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:var(--soft);border-radius:10px;padding:8px;font-size:12px;text-align:center}
+.plan b{display:block;font-size:14px;white-space:nowrap}
+.analog{font-size:12.5px;border-inline-start:3px solid var(--accent);padding:4px 10px;background:var(--accent-soft);border-radius:6px}
+.fund{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--muted)}
+.fund b{color:var(--ink)}
+.ctrl{display:flex;gap:6px;flex-wrap:wrap}
+.seg{display:inline-flex;background:var(--soft);border-radius:10px;padding:3px}
+.seg button{border:0;background:none;color:var(--muted);font:inherit;font-size:13px;padding:5px 11px;border-radius:8px;cursor:pointer}
+.seg button.on{background:var(--card);color:var(--ink);font-weight:700;box-shadow:var(--shadow)}
+#heat{position:relative;width:100%;height:560px;border-radius:12px;overflow:hidden;background:var(--line)}
+.hs{position:absolute;border:1px solid var(--bg);overflow:hidden}
+.hs>.hl{position:absolute;top:0;right:0;left:0;font-size:11px;font-weight:700;padding:1px 5px;background:rgba(0,0,0,.28);color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:1}
+.hc{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;line-height:1.15;overflow:hidden;border:1px solid rgba(0,0,0,.18);cursor:default}
+.hc b{font-size:12px} .hc span{font-size:10.5px;opacity:.95}
+.scale{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-top:6px}
+.scale i{display:block;width:180px;height:8px;border-radius:4px}
+.themes{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+.th{padding:10px 12px;border-radius:12px;color:#fff;display:flex;flex-direction:column;gap:3px;min-height:104px}
+.th .n{font-weight:800;font-size:15px}
+.th .v{font-size:22px;font-weight:800}
+.th .m{font-size:11.5px;opacity:.92}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:7px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-weight:500;font-size:12px;position:sticky;top:0;background:var(--card);cursor:pointer;user-select:none}
+td.n,th.n{text-align:left}
+.tw{overflow:auto;max-height:620px;border-radius:12px}
+tr:hover td{background:var(--soft)}
+.caps{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.caps .card{padding:12px}
+.caps h3{margin:0 0 6px;font-size:15px}
+input,select{font:inherit;font-size:13px;padding:6px 10px;border-radius:9px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}
+.kpi{padding:10px 14px}
+.kpi b{display:block;font-size:20px}
+.kpi span{font-size:12px;color:var(--muted)}
+.method p{margin:6px 0}
+.method{padding:16px;font-size:14px}
+.disc{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);margin-top:24px;padding-top:12px}
+.iconbtn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:9px;padding:6px 10px;cursor:pointer;font:inherit;font-size:13px}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.pat{background:var(--up-soft);color:var(--up)}
+.pf{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.pfc{padding:12px 14px;display:flex;flex-direction:column;gap:6px;border-inline-start:4px solid var(--line)}
+.pfc.l3{border-inline-start-color:var(--down)} .pfc.l2{border-inline-start-color:var(--warn)} .pfc.l1{border-inline-start-color:var(--accent)} .pfc.l0{border-inline-start-color:var(--up)}
+.pfc .sig{font-size:13px;margin:0;padding-inline-start:16px}
+.eq{width:100%;height:220px;display:block}
+.ic{display:grid;grid-template-columns:auto 1fr auto;gap:4px 8px;font-size:12.5px;align-items:center}
+.icb{height:8px;background:var(--soft);border-radius:4px;position:relative}
+.icb>span{position:absolute;top:0;bottom:0;border-radius:4px}
+.two{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+@media (max-width:640px){
+  h1{font-size:22px}.picks{grid-template-columns:1fr}#heat{height:520px}.plan{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div>
+    <h1>רדאר מניות יומי</h1>
+    <div class="sub" id="meta"></div>
+  </div>
+  <div class="ctrl">
+    <a id="researchLink" class="iconbtn" style="text-decoration:none" target="_blank" rel="noopener" hidden>חדר המחקר ←</a>
+    <select id="arch" aria-label="ארכיון"></select>
+    <button class="iconbtn" id="themeBtn" aria-label="מצב תצוגה">◐</button>
+  </div>
+</header>
+<nav>
+  <a href="#portfolio" id="navPf">התיק שלי</a><a href="#watch">מעקב</a><a href="#top10">טופ 10</a><a href="#israel">ישראל</a><a href="#heatmap">מפת חום</a><a href="#themes">קטגוריות</a>
+  <a href="#groups">ענפים</a><a href="#caps">לפי גודל</a><a href="#scan">סריקה מלאה</a><a href="#track">ביצועי עבר</a><a href="#backtest">בדיקה לאחור</a><a href="#method">שיטה</a>
+</nav>
+
+<section id="market">
+  <div class="grid g3" id="regimes"></div>
+  <div id="regimeBanner"></div>
+  <div class="kpis" id="breadth" style="margin-top:10px"></div>
+</section>
+
+<section id="portfolio">
+  <div class="sec-h"><div><h2>התיק שלי</h2><div class="sub">עריכה בקובץ portfolio.csv במאגר · אותות לפי Weinstein ו-O'Neil</div></div></div>
+  <div id="pfBox"></div>
+</section>
+
+<section id="watch">
+  <div class="sec-h"><div><h2>רשימת המעקב שלי</h2><div class="sub">לפי תחומים · תזמון לפי ממוצע 20 (מיכה) בתוך מגמת 150 · עריכה בקובץ watchlist.csv · התראות בזמן המסחר בטלגרם</div></div></div>
+  <div id="watchBox"></div>
+</section>
+
+<section id="top10">
+  <div class="sec-h"><div><h2>10 המניות של היום</h2><div class="sub">פרופיל צמיחה אגרסיבית · עד 3 מניות מכל קטגוריה · ממוינות לפי ציון משולב</div></div></div>
+  <div class="picks" id="picks"></div>
+</section>
+
+<section id="israel">
+  <div class="sec-h"><div><h2>המובילות בתל אביב</h2><div class="sub">מחירים באגורות · RS מחושב מול מניות ת"א בלבד</div></div></div>
+  <div class="picks" id="israelPicks"></div>
+</section>
+
+<section id="heatmap">
+  <div class="sec-h">
+    <div><h2>מפת חום</h2><div class="sub">גודל = שווי שוק · צבע = תשואה בתקופה</div></div>
+    <div class="ctrl">
+      <div class="seg" id="hMk"><button data-v="US" class="on">ארה"ב</button><button data-v="TASE">ת"א</button></div>
+      <div class="seg" id="hPer"><button data-v="r1" class="on">יום</button><button data-v="r5">שבוע</button><button data-v="r21">חודש</button><button data-v="r63">3 ח'</button></div>
+    </div>
+  </div>
+  <div id="heat"></div>
+  <div class="scale"><span id="scMin"></span><i id="scBar"></i><span id="scMax"></span></div>
+</section>
+
+<section id="themes">
+  <div class="sec-h">
+    <div><h2>מפת קטגוריות</h2><div class="sub">תשואה חציונית · % מעל ממוצע 150 · המובילות בכל קטגוריה</div></div>
+    <div class="seg" id="tPer"><button data-v="r1">יום</button><button data-v="r5">שבוע</button><button data-v="r21" class="on">חודש</button><button data-v="r63">3 ח'</button></div>
+  </div>
+  <div class="themes" id="themeGrid"></div>
+</section>
+
+<section id="groups">
+  <div class="sec-h">
+    <div><h2>ענפים מובילים</h2><div class="sub">דירוג בשיטת IBD: חציון החוזק היחסי של המניות בכל תעשייה · מניות מענף מוביל מקבלות ניקוד גבוה יותר</div></div>
+    <div class="seg" id="gMk"><button data-v="US" class="on">ארה"ב</button><button data-v="TASE">ת"א</button></div>
+  </div>
+  <div class="card tw" style="max-height:520px"><table id="gTbl"></table></div>
+</section>
+
+<section id="caps">
+  <div class="sec-h"><div><h2>המובילות לפי גודל חברה</h2><div class="sub">מגה ‎&gt;$200B · גדולה ‎$10–200B · בינונית ‎$2–10B · קטנה ‎&lt;$2B</div></div></div>
+  <div class="caps" id="capGrid"></div>
+</section>
+
+<section id="scan">
+  <div class="sec-h">
+    <div><h2>סריקה מלאה</h2><div class="sub" id="scanSub"></div></div>
+    <div class="ctrl">
+      <input id="q" placeholder="חיפוש טיקר / שם" size="14">
+      <select id="fMk"><option value="">כל השווקים</option><option value="US">ארה"ב</option><option value="TASE">ת"א</option></select>
+      <select id="fTh"><option value="">כל הקטגוריות</option></select>
+      <select id="fCap"><option value="">כל הגדלים</option><option>מגה</option><option>גדולה</option><option>בינונית</option><option>קטנה</option></select>
+    </div>
+  </div>
+  <div class="card tw"><table id="tbl"></table></div>
+</section>
+
+<section id="track">
+  <div class="sec-h"><div><h2>ביצועי המלצות קודמות</h2><div class="sub">תשואה ממחיר הסגירה ביום ההמלצה ועד היום, מול S&amp;P 500 באותה תקופה</div></div></div>
+  <div id="trackBox"></div>
+</section>
+
+<section id="backtest">
+  <div class="sec-h"><div><h2>בדיקה לאחור</h2><div class="sub" id="btSub"></div></div></div>
+  <div id="btBox"></div>
+</section>
+
+<section id="method">
+  <h2>איך נבחרות המניות</h2>
+  <div class="card method" id="methodBox"></div>
+  <div class="disc">הדוח מופק אוטומטית מנתונים ציבוריים (Yahoo Finance, Nasdaq) ואינו ייעוץ השקעות או המלצה אישית. ביצועי עבר ודמיון למניות שעלו בעבר אינם מבטיחים תשואה עתידית. הנתונים עלולים להכיל שגיאות או עיכובים – יש לבדוק לפני כל פעולה ולהתייעץ עם יועץ השקעות מורשה.</div>
+</section>
+</div>
+
+<script id="data" type="application/json">/*__DATA__*/null</script>
+<script>
+const D = JSON.parse(document.getElementById('data').textContent);
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pct = (x, d=1) => x==null ? '—' : `<span class="num ${x>=0?'up':'down'}">${x>=0?'+':''}${(x*100).toFixed(d)}%</span>`;
+const pctPlain = (x, d=0) => x==null ? '—' : `${(x*100).toFixed(d)}%`;
+const px = (x, cur) => x==null ? '—' : (cur==='$' ? '$' : '') + (x>=1000 ? x.toLocaleString('en-US',{maximumFractionDigits:0}) : x.toFixed(2)) + (cur==='$'?'':' '+cur);
+const pxn = (x, cur) => cur==='$' ? px(x,cur) : px(x,'').trim();
+const big = x => x==null ? '—' : x>=1e12 ? '$'+(x/1e12).toFixed(2)+'T' : x>=1e9 ? '$'+(x/1e9).toFixed(1)+'B' : '$'+(x/1e6).toFixed(0)+'M';
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+// ---- theme toggle ----
+(function(){
+  let saved=null; try{saved=localStorage.getItem('radar-theme')}catch(e){}
+  if(saved) document.documentElement.dataset.theme=saved;
+  $('#themeBtn').onclick=()=>{
+    const cur=document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+    const nx=cur==='dark'?'light':'dark'; document.documentElement.dataset.theme=nx;
+    try{localStorage.setItem('radar-theme',nx)}catch(e){}
+    renderAll();
+  };
+})();
+
+// ---- header ----
+$('#meta').innerHTML = `נתוני מסחר נכון ל-<b class="num">${D.asof}</b> · נסרקו <b class="num">${D.counts.analyzed.toLocaleString()}</b> מניות (<span class="num">${D.counts.us.toLocaleString()}</span> ארה"ב, <span class="num">${D.counts.tase}</span> ת"א) · <span class="num">${D.counts.eligible}</span> בשלב 2 · הופק ${esc(D.generated)}`;
+if(D.research_url){const rl=$('#researchLink');rl.href=D.research_url;rl.hidden=false;}
+const inArchive = location.pathname.includes('/archive/');
+$('#arch').innerHTML = D.archive.map(d=>`<option value="${d}" ${d===D.asof?'selected':''}>${d===D.archive[0]?'היום · ':''}${d}</option>`).join('');
+$('#arch').onchange = e => { const d=e.target.value; location.href = d===D.archive[0] ? (inArchive?'../index.html':'index.html') : (inArchive? d+'.html' : 'archive/'+d+'.html'); };
+
+function renderMarket(){
+  $('#regimes').innerHTML = D.regime.map(r=>`<div class="card regime lv${r.level}"><span class="sub">${esc(r.name)}</span><span class="st">${esc(r.status)}</span>
+    <span class="sub">יום ${pct(r.r1d)} · חודש ${pct(r.r21)} · מממוצע 150 ${pct(r.ext_sma150)}</span></div>`).join('');
+  const us = D.regime[0];
+  $('#regimeBanner').innerHTML = us.level < 0 ? `<div class="banner">השוק האמריקאי מתחת לממוצע 150 – לפי CANSLIM (האות M) ו-Minervini, רוב הפריצות נכשלות בשוק כזה. מומלץ להקטין פוזיציות או להמתין.</div>` : '';
+  const b = (k, lbl) => { const x=D.breadth[k]; if(!x||!x.n) return ''; return `
+    <div class="card kpi"><b class="num">${pctPlain(x.a150)}</b><span>${lbl}: מעל ממוצע 150</span></div>
+    <div class="card kpi"><b class="num">${pctPlain(x.a50)}</b><span>${lbl}: מעל ממוצע 50</span></div>
+    <div class="card kpi"><b class="num">${x.nh} / ${x.nl}</b><span>${lbl}: שיאים / שפלים שנתיים</span></div>`; };
+  $('#breadth').innerHTML = b('US','ארה"ב') + b('TASE','ת"א');
+}
+
+// ---- chart ----
+function chart(s){
+  if(!s) return '';
+  const W=320,H=120,P=4, all=[...s.c,...s.s50,...s.s150,...s.s200].filter(v=>v!=null);
+  const mn=Math.min(...all), mx=Math.max(...all), n=s.c.length;
+  const X=i=>W-P-(i/(n-1))*(W-2*P); // RTL-neutral: time flows left→right visually
+  const Xl=i=>P+(i/(n-1))*(W-2*P);
+  const Y=v=>H-P-((v-mn)/(mx-mn||1))*(H-2*P);
+  const path=arr=>{let d='',pen=false;arr.forEach((v,i)=>{if(v==null){pen=false;return}d+=(pen?'L':'M')+Xl(i).toFixed(1)+' '+Y(v).toFixed(1);pen=true});return d};
+  const up = s.c[n-1] >= s.c[0];
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="גרף מחיר שנה">
+    <path d="${path(s.s200)}" fill="none" stroke="${css('--s200')}" stroke-width="1.2" vector-effect="non-scaling-stroke"/>
+    <path d="${path(s.s150)}" fill="none" stroke="${css('--s150')}" stroke-width="1.6" vector-effect="non-scaling-stroke"/>
+    <path d="${path(s.s50)}" fill="none" stroke="${css('--s50')}" stroke-width="1.2" stroke-dasharray="3 2" vector-effect="non-scaling-stroke"/>
+    <path d="${path(s.c)}" fill="none" stroke="${css(up?'--up':'--down')}" stroke-width="1.8" vector-effect="non-scaling-stroke"/>
+  </svg>`;
+}
+function ring(v){
+  const r=23,c=2*Math.PI*r, col=v>=75?css('--up'):v>=60?css('--accent'):css('--warn');
+  return `<div class="ring"><svg width="54" height="54" viewBox="0 0 54 54"><circle cx="27" cy="27" r="${r}" fill="none" stroke="${css('--soft')}" stroke-width="5"/>
+  <circle cx="27" cy="27" r="${r}" fill="none" stroke="${col}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${c*v/100} ${c}" transform="rotate(-90 27 27)"/></svg><b class="num">${Math.round(v)}</b></div>`;
+}
+const PARTS=[['trend','מגמה (150/Minervini)'],['rs','חוזק יחסי RS'],['fund','צמיחה פונדמנטלית'],['group','חוזק הענף'],['analog','דמיון למנצחות'],['setup','מבנה/תבנית'],['accum','איסוף מוסדי']];
+const earnChip = d => d==null||d>14 ? '' : `<span class="chip warn">דוח בעוד ${Math.max(0,d)} ימים</span>`;
+const patChips = ps => (ps||[]).map(x=>`<span class="chip pat">${esc(x.name)}</span>`).join('');
+function pickCard(p){
+  const ai = p.theme==='שרשרת ה-AI';
+  const f=p.fund||{};
+  return `<article class="card pick">
+    <div class="ph"><div class="rank num">${p.rank}</div>
+      <div class="tt"><div class="tk">${esc(p.t.replace('.TA',''))}</div><div class="nm" title="${esc(p.name)}">${esc(p.name)}</div>
+        <div class="chips"><span class="chip ${ai?'ai':''}">${esc(p.theme)}${p.sub&&p.sub!==p.theme?' · '+esc(p.sub):''}</span><span class="chip">${esc(p.cap)} · ${big(p.mcap)}</span>${p.mk==='TASE'?'<span class="chip">ת"א</span>':''}${(p.tags||[]).includes('דיבידנד')?'<span class="chip">דיבידנד '+pctPlain(p.div,1)+'</span>':''}${(p.tags||[]).includes('השקעת NVIDIA')?'<span class="chip ai">השקעת NVIDIA</span>':''}${patChips(p.pats)}${earnChip(p.earn)}</div></div>
+      ${ring(p.score)}</div>
+    <div class="prow"><span><b class="num">${px(p.price,p.cur)}</b></span><span>יום ${pct(p.r1d)}</span><span>חודש ${pct(p.r21)}</span><span>3 ח' ${pct(p.r63)}</span><span>שנה ${pct(p.r252,0)}</span></div>
+    <div>${chart(p.series)}<div class="legend"><span><i style="background:var(--s50)"></i>ממוצע 50</span><span><i style="background:var(--s150)"></i>ממוצע 150</span><span><i style="background:var(--s200)"></i>ממוצע 200</span><span class="meta num">RS ${p.rs} · TT ${p.tt}/8 · שלב ${p.stage}${p.grp?` · ענף #${p.grp.rank}/${p.grp.of}`:''}</span></div></div>
+    <div class="bars">${PARTS.map(([k,l])=>`<span>${l}</span><div class="bar"><span style="width:${Math.round(p.parts[k]??50)}%"></span></div><span class="num">${Math.round(p.parts[k]??50)}</span>`).join('')}</div>
+    ${p.micha?`<div class="mcha"><b style="font-size:12.5px">שיטות מיכה ${p.micha.score}/6:</b>${p.micha.checks.map(c=>`<span class="m ${c.ok?'ok':''}" title="${esc(c.note)}">${c.ok?'✓ ':''}${esc(c.n)}</span>`).join('')}</div>`:''}
+    <ul class="rs good">${p.good.map(g=>`<li>${esc(g)}</li>`).join('')}</ul>
+    ${p.warn.length?`<ul class="rs warn">${p.warn.map(g=>`<li>${esc(g)}</li>`).join('')}</ul>`:''}
+    <div class="plan"><div>כניסה<b class="num">${pxn(p.plan.entry,p.cur)}</b></div><div>סטופ<b class="num">${pxn(p.plan.stop,p.cur)}</b></div><div>סיכון<b class="num">${pctPlain(p.plan.risk,1)}</b></div><div>${esc(p.plan.target_src||'יעד 3R')}<b class="num">${pxn(p.plan.target1,p.cur)}</b></div></div>
+    <div class="sub" style="margin-top:-4px">${esc(p.plan.mode)}</div>
+    ${p.analog?`<div class="analog">הכי דומה ל<b>${esc(p.analog.label)}</b> (<span class="num">${Math.round(p.analog.sim)}%</span> דמיון) · אחרי 6 ח' ${pct(p.analog.fwd6,0)} · אחרי שנה ${pct(p.analog.fwd12,0)}</div>`:''}
+    ${p.fund?`<div class="fund"><span>הכנסות <b>${pct(f.rev_g,0)}</b></span><span>רווח רבעוני <b>${pct(f.eps_g,0)}</b></span><span>מרווח גולמי <b class="num">${pctPlain(f.gm)}</b></span><span>ROE <b class="num">${pctPlain(f.roe)}</b></span><span>P/E צפוי <b class="num">${f.fpe?f.fpe.toFixed(1):'—'}</b></span>${f.target?`<span>יעד אנליסטים <b class="num">${px(f.target,p.cur)}</b></span>`:''}</div>`:''}
+  </article>`;
+}
+function renderPicks(){
+  $('#picks').innerHTML = D.picks.length ? D.picks.map(pickCard).join('') : '<div class="card method">אין היום מניות שעומדות בכל התנאים (שלב 2, נזילות, נתונים פונדמנטליים). זה קורה בשוק יורד – וזה גם מסר.</div>';
+  $('#israelPicks').innerHTML = D.israel.length ? D.israel.map(pickCard).join('') : '<div class="card method">אין מניות ת"א בשלב 2 שעומדות בתנאי הנזילות.</div>';
+}
+
+// ---- heat colors ----
+const SCALE={r1:.03,r5:.06,r21:.12,r63:.25};
+function heatColor(v, per){
+  if(v==null) return '#6b7280';
+  const t=Math.max(-1,Math.min(1,v/SCALE[per]));
+  const dark = (document.documentElement.dataset.theme||'')==='dark' || (!document.documentElement.dataset.theme && matchMedia('(prefers-color-scheme: dark)').matches);
+  const neutral = dark ? [64,68,78] : [128,134,145];
+  const g=[18,140,90], r=[205,55,55];
+  const a=Math.abs(t)**0.8, c=t>=0?g:r;
+  const m=neutral.map((n,i)=>Math.round(n+(c[i]-n)*a));
+  return `rgb(${m})`;
+}
+// ---- squarified treemap ----
+function squarify(items, x, y, w, h){
+  const out=[]; items=items.filter(i=>i.v>0).sort((a,b)=>b.v-a.v);
+  const total=items.reduce((s,i)=>s+i.v,0); if(!total) return out;
+  const scale=w*h/total; let rest=items.map(i=>({...i,a:i.v*scale}));
+  while(rest.length){
+    const short=Math.min(w,h); let row=[rest[0]], i=1;
+    const worst=r=>{const s=r.reduce((a,b)=>a+b.a,0),mx=Math.max(...r.map(q=>q.a)),mn=Math.min(...r.map(q=>q.a));return Math.max(short*short*mx/(s*s),s*s/(short*short*mn))};
+    while(i<rest.length && worst([...row,rest[i]])<=worst(row)){row.push(rest[i]);i++}
+    const s=row.reduce((a,b)=>a+b.a,0);
+    if(w>=h){const cw=s/h;let cy=y;row.forEach(q=>{const qh=q.a/cw;out.push({...q,x,y:cy,w:cw,h:qh});cy+=qh});x+=cw;w-=cw}
+    else{const rh=s/w;let cx=x;row.forEach(q=>{const qw=q.a/rh;out.push({...q,x:cx,y,w:qw,h:rh});cx+=qw});y+=rh;h-=rh}
+    rest=rest.slice(i);
+  }
+  return out;
+}
+let hMk='US', hPer='r1', tPer='r21';
+function renderHeat(){
+  const el=$('#heat'), W=el.clientWidth, H=el.clientHeight;
+  const rows=D.heat.filter(r=>r.mk===hMk);
+  const secs={}; rows.forEach(r=>{(secs[r.s]=secs[r.s]||[]).push(r)});
+  const sl=squarify(Object.entries(secs).map(([k,v])=>({k,v:v.reduce((a,b)=>a+b.m,0),items:v})),0,0,W,H);
+  let html='';
+  sl.forEach(s=>{
+    html+=`<div class="hs" style="left:${s.x}px;top:${s.y}px;width:${s.w}px;height:${s.h}px">`;
+    const inner=squarify(s.items.map(i=>({...i,v:i.m})),0,14,s.w,Math.max(0,s.h-14));
+    inner.forEach(c=>{
+      const v=c[hPer], showT=c.w>34&&c.h>22, showV=c.w>44&&c.h>36;
+      html+=`<div class="hc" title="${esc(c.t)} ${v==null?'':(v*100).toFixed(2)+'%'}" style="left:${c.x}px;top:${c.y}px;width:${c.w}px;height:${c.h}px;background:${heatColor(v,hPer)}">${showT?`<b class="tk">${esc(c.t.replace('.TA',''))}</b>`:''}${showV?`<span class="num">${v==null?'':(v>=0?'+':'')+(v*100).toFixed(1)+'%'}</span>`:''}</div>`;
+    });
+    html+=`<div class="hl">${esc(s.k)}</div></div>`;
+  });
+  el.innerHTML=html||'<div class="method">אין נתונים</div>';
+  const m=SCALE[hPer]*100;
+  $('#scMin').textContent=`-${m}%`; $('#scMax').textContent=`+${m}%`;
+  $('#scBar').style.background=`linear-gradient(to left, ${heatColor(-SCALE[hPer],hPer)}, ${heatColor(0,hPer)}, ${heatColor(SCALE[hPer],hPer)})`;
+}
+function renderThemes(){
+  $('#themeGrid').innerHTML=D.themes.map(t=>`<div class="th" style="background:${heatColor(t[tPer],tPer)}">
+    <span class="n">${esc(t.name)}</span><span class="v num">${t[tPer]==null?'—':(t[tPer]>=0?'+':'')+(t[tPer]*100).toFixed(1)+'%'}</span>
+    <span class="m">${t.n} מניות · <span class="num">${pctPlain(t.a150)}</span> מעל ממוצע 150</span>
+    <span class="m tk" style="text-align:right">${t.leaders.map(x=>x.replace('.TA','')).join(' · ')||'&nbsp;'}</span></div>`).join('');
+}
+function seg(id, cb){ document.querySelectorAll(id+' button').forEach(b=>b.onclick=()=>{document.querySelectorAll(id+' button').forEach(x=>x.classList.remove('on'));b.classList.add('on');cb(b.dataset.v)}); }
+seg('#hMk',v=>{hMk=v;renderHeat()}); seg('#hPer',v=>{hPer=v;renderHeat()}); seg('#tPer',v=>{tPer=v;renderThemes()});
+
+// ---- caps ----
+function renderCaps(){
+  $('#capGrid').innerHTML=Object.entries(D.by_cap).map(([k,v])=>`<div class="card"><h3>${k}</h3>${v.length?`<table><tr><th>טיקר</th><th>קטגוריה</th><th class="n">ציון</th><th class="n">3 ח'</th></tr>
+  ${v.map(p=>`<tr><td class="tk"><b>${esc(p.t.replace('.TA',''))}</b></td><td>${esc(p.theme)}</td><td class="n num">${Math.round(p.score)}</td><td class="n">${pct(p.r63,0)}</td></tr>`).join('')}</table>`:'<div class="sub">אין מועמדות</div>'}</div>`).join('');
+}
+
+// ---- table ----
+const COLS=[['t','טיקר'],['name','שם'],['theme','קטגוריה'],['cap','גודל'],['score','ציון',1],['rs','RS',1],['tt','TT',1],['r21','חודש',1],['r63','3 ח\'',1],['dist_hi','מהשיא',1],['sim','דמיון',1],['pat','תבנית'],['mscore','מיכה',1],['earn','דוח',1]];
+let sortK='score', sortD=-1;
+[...new Set(D.table.map(r=>r.theme))].sort().forEach(t=>$('#fTh').insertAdjacentHTML('beforeend',`<option>${esc(t)}</option>`));
+function renderTable(){
+  const q=$('#q').value.trim().toLowerCase(), mk=$('#fMk').value, th=$('#fTh').value, cp=$('#fCap').value;
+  let rows=D.table.map(r=>({...r,sim:r.analog?r.analog.sim:null,pat:(r.pats||[]).map(x=>x.name).join(', ')||null,mscore:r.micha?r.micha.score:null})).filter(r=>(!q||r.t.toLowerCase().includes(q)||(r.name||'').toLowerCase().includes(q))&&(!mk||r.mk===mk)&&(!th||r.theme===th)&&(!cp||r.cap===cp));
+  rows.sort((a,b)=>{const x=a[sortK],y=b[sortK];if(x==null)return 1;if(y==null)return -1;return (x>y?1:x<y?-1:0)*sortD});
+  $('#scanSub').textContent=`${rows.length} מתוך ${D.table.length} המובילות בשלב 2 (לחיצה על כותרת = מיון)`;
+  $('#tbl').innerHTML=`<thead><tr>${COLS.map(([k,l,n])=>`<th data-k="${k}" class="${n?'n':''}">${l}${sortK===k?(sortD<0?' ▼':' ▲'):''}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>
+    <td class="tk"><b>${esc(r.t.replace('.TA',''))}</b></td><td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">${esc(r.name)}</td><td>${esc(r.theme)}</td><td>${esc(r.cap)}</td>
+    <td class="n num"><b>${Math.round(r.score)}</b></td><td class="n num">${r.rs}</td><td class="n num">${r.tt}/8</td><td class="n">${pct(r.r21)}</td><td class="n">${pct(r.r63)}</td><td class="n">${pct(r.dist_hi)}</td><td class="n num">${r.sim==null?'—':Math.round(r.sim)+'%'}</td><td>${esc(r.pat||'')}</td><td class="n num">${r.mscore==null?'—':r.mscore+'/6'}</td><td class="n num ${r.earn!=null&&r.earn<=10?'down':''}">${r.earn==null?'—':r.earn+' ימים'}</td></tr>`).join('')}</tbody>`;
+  document.querySelectorAll('#tbl th').forEach(h=>h.onclick=()=>{const k=h.dataset.k;if(sortK===k)sortD*=-1;else{sortK=k;sortD=['t','name','theme','cap','pat','earn'].includes(k)?1:-1}renderTable()});
+}
+['#q','#fMk','#fTh','#fCap'].forEach(s=>$(s).addEventListener('input',renderTable));
+
+// ---- track ----
+function renderTrack(){
+  if(!D.track.length){$('#trackBox').innerHTML='<div class="card method">המעקב יתחיל מחר – כל יום נשמרות 10 ההמלצות ומחיר הסגירה שלהן.</div>';return}
+  const by={}; D.track.forEach(r=>{(by[r.date]=by[r.date]||[]).push(r)});
+  const dates=Object.keys(by).sort().reverse();
+  const all=D.track.map(r=>r.ret), avg=all.reduce((a,b)=>a+b,0)/all.length, win=all.filter(x=>x>0).length/all.length;
+  const ex=D.track.filter(r=>r.spy!=null).map(r=>r.ret-r.spy); const exAvg=ex.length?ex.reduce((a,b)=>a+b,0)/ex.length:null;
+  $('#trackBox').innerHTML=`<div class="kpis" style="margin-bottom:10px"><div class="card kpi"><b>${pct(avg)}</b><span>תשואה ממוצעת להמלצה</span></div>
+   <div class="card kpi"><b class="num">${pctPlain(win)}</b><span>אחוז המלצות ברווח</span></div><div class="card kpi"><b>${pct(exAvg)}</b><span>עודף תשואה מול S&amp;P 500</span></div>
+   <div class="card kpi"><b class="num">${dates.length}</b><span>ימי המלצה</span></div></div>
+   <div class="card tw" style="max-height:420px"><table><thead><tr><th>תאריך</th><th>מניות (תשואה מאז)</th><th class="n">ממוצע</th><th class="n">S&amp;P 500</th></tr></thead><tbody>
+   ${dates.map(d=>{const rs=by[d].sort((a,b)=>a.rank-b.rank),m=rs.reduce((a,b)=>a+b.ret,0)/rs.length;return `<tr><td class="num">${d}</td><td style="white-space:normal">${rs.map(r=>`<span class="tk">${esc(r.t.replace('.TA',''))}</span> ${pct(r.ret,0)}`).join(' · ')}</td><td class="n">${pct(m)}</td><td class="n">${pct(rs[0].spy)}</td></tr>`}).join('')}</tbody></table></div>`;
+}
+
+// ---- method ----
+function renderMethod(){
+  const w=D.weights;
+  $('#methodBox').innerHTML=`
+  <p>כל בוקר נסרקות כל המניות בארה"ב (שווי מעל $300M) ורשימת מניות ת"א. לכל מניה מחושבים מדדים מכמה תאוריות, והם מתורגמים לציון 0–100:</p>
+  <p><b>מגמה – ${Math.round(w.trend*100)}%:</b> ממוצע נע 150 יום (≈30 שבועות) לפי Stan Weinstein – רק מניות בשלב 2 (מחיר מעל ממוצע 150 עולה) נכנסות לרשימה. בנוסף 8 קריטריוני Trend Template של Mark Minervini (סדר ממוצעים 50>150>200, ממוצע 200 עולה, 30%+ מעל השפל, עד 25% מהשיא, RS≥70).</p>
+  <p><b>חוזק יחסי – ${Math.round(w.rs*100)}%:</b> RS Rating בשיטת IBD/William O'Neil: תשואה משוקללת 3/6/9/12 חודשים (משקל כפול לרבעון האחרון), מדורגת 1–99 מול כל השוק.</p>
+  <p><b>צמיחה פונדמנטלית – ${Math.round(w.fund*100)}%:</b> האותיות C ו-A של CANSLIM – צמיחה בהכנסות וברווח הרבעוני, מרווח גולמי ו-ROE.</p>
+  <p><b>דמיון למנצחות – ${Math.round(w.analog*100)}%:</b> לכל אחת מ-${D.analogs.length} "מניות שהתפוצצו" (למשל אנבידיה 2016 ו-2023, סופרמיקרו, פלנטיר) מחושבת מנתוני אמת טביעת אצבע טכנית ביום שלפני הריצה – תשואה עודפת מול השוק, מרחק מהשיא ומממוצע 150, שיפוע הממוצע, התכווצות תנודתיות, איסוף בנפח ועוד. כל מניה היום מושווית לכולן, ומוצגת הקרובה ביותר ומה היא עשתה בפועל אחר כך.</p>
+  <p><b>מבנה לפני פריצה – ${Math.round(w.setup*100)}%:</b> קרבה לפיבוט (שיא 60 יום), VCP – התכווצות תנודתיות (Minervini), פריצה בנפח (O'Neil/Darvas), ועונש על מניה "מתוחה" מעל ממוצע 50.</p>
+  <p><b>חוזק הענף – ${Math.round(w.group*100)}%:</b> דירוג תעשיות בשיטת IBD – לפי O'Neil, כמחצית מתנועת מניה נובעת מהענף שלה. מניה מענף בין 20% המובילים מקבלת ניקוד מלא.</p>
+  <p><b>תבניות גרף:</b> זיהוי אוטומטי של כוס וידית, בסיס שטוח, תחתית כפולה ודגל גבוה וצר; מניה בתבנית וסמוך לנקודת הפריצה מקבלת תוספת לרכיב המבנה.</p>
+  <p><b>דוחות:</b> מניה שמפרסמת דוח בתוך 5 ימים מקבלת הורדה קטנה בציון ואזהרה – דוח עלול לגרום לקפיצה או לצניחה חדה.</p>
+  <p><b>משקלות בשימוש:</b> ${esc(D.weights_src)}.</p>
+  <p><b>איסוף מוסדי – ${Math.round(w.accum*100)}%:</b> יחס נפח ימי עלייה/ירידה ב-50 יום וגידול בנפח.</p>
+  <p><b>6 השיטות של מיכה סטוקס:</b> לכל מניה נבדק צ'ק-ליסט של 6 השיטות מהסרטון הרשמי שלו – (1) מחיר מעל ממוצע 150/200 שעולה, (2) תיקון לממוצע 20/50 או חציית ממוצעים, (3) קרבה לתמיכה או פריצת התנגדות, (4) נגיעה בקו מגמה עולה (ושבירתו = אזהרה), (5) תצורה עם יעד מחיר (כוס וידית; ראש וכתפיים = אזהרה), (6) תיקון פיבונאצ'י ל"אזור הזהב" 50%–61.8%. כל שיטה שמתקיימת מוסיפה מעט לרכיב המבנה.</p>
+  <p><b>ניהול סיכון:</b> כניסה בפריצת הפיבוט, סטופ לפי כלל 7–8% של O'Neil או מתחת לשפל 10 ימים, יעד ראשון ביחס סיכוי/סיכון 1:3. כשמדד S&P 500 מתחת לממוצע 150 מוצגת אזהרה (האות M ב-CANSLIM).</p>
+  <div class="tw" style="max-height:none;margin-top:10px"><table><thead><tr><th>מנצחת היסטורית</th><th>תאריך טביעת האצבע</th><th class="n">6 ח' אחרי</th><th class="n">שנה אחרי</th></tr></thead>
+  <tbody>${D.analogs.map(a=>`<tr><td>${esc(a.label)}</td><td class="num">${a.date}</td><td class="n">${pct(a.fwd6,0)}</td><td class="n">${pct(a.fwd12,0)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+function renderWatch(){
+  const W=D.watch||[]; $('#watch').style.display=W.length?'':'none'; if(!W.length) return;
+  const cls=l=>l===0?'up':l>=3?'down':l===2?'down':'';
+  const secs=[...new Set(W.map(w=>w.sector))];
+  $('#watchBox').innerHTML=secs.map(sc=>`<div class="card" style="margin-bottom:10px"><h3>${esc(sc)}</h3><div class="tw" style="max-height:none"><table>
+  <thead><tr><th>טיקר</th><th>המלצה</th><th class="n">מחיר</th><th class="n">יום</th><th class="n">מ-20</th><th class="n">מ-150</th><th class="n">מיכה</th><th>אירועים</th><th class="n">כניסה / סטופ / יעד</th></tr></thead><tbody>
+  ${W.filter(w=>w.sector===sc).map(w=>w.error?`<tr><td class="tk"><b>${esc(w.t)}</b></td><td colspan="8" class="sub">${esc(w.error)}</td></tr>`:`<tr>
+    <td class="tk"><b>${esc(w.t)}</b><div class="sub" style="font-size:11px">${esc(w.note)}</div></td><td class="${cls(w.level)}" style="min-width:110px"><b>${esc(w.action)}</b></td><td class="n num">${w.price.toFixed(2)}</td><td class="n">${pct(w.chg,1)}</td>
+    <td class="n">${pct(w.d20,1)}</td><td class="n">${pct(w.d150,0)}</td><td class="n num">${w.micha}/6</td><td style="font-size:12px">${(w.events||[]).map(e=>esc(e.text)).join('<br>')||'—'}</td>
+    <td class="n num" style="font-size:12px">${w.stop?`${w.entry.toFixed(2)} / ${w.stop.toFixed(2)} / ${w.target?w.target.toFixed(2):'—'}`:'—'}</td></tr>`).join('')}</tbody></table></div></div>`).join('');
+}
+
+function renderPortfolio(){
+  const P=D.portfolio||[];
+  $('#portfolio').style.display=P.length?'':'none'; $('#navPf').style.display=P.length?'':'none';
+  if(!P.length) return;
+  const tot=P.filter(p=>p.value&&p.buy&&p.shares&&p.cur==='$');
+  const lbl={3:'מכירה',2:'אזהרה',1:'לתשומת לב',0:'החזק'};
+  $('#pfBox').innerHTML=`<div class="pf">${P.slice().sort((a,b)=>(b.level||0)-(a.level||0)).map(p=>p.price==null?`<div class="card pfc l2"><b class="tk">${esc(p.t)}</b><span class="sub">${esc(p.status)}</span></div>`:`
+   <div class="card pfc l${p.level}">
+     <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><div><b class="tk" style="font-size:18px">${esc(p.t.replace('.TA',''))}</b> <span class="sub">${esc(p.name)}</span></div><span class="chip ${p.level>=2?'warn':''}">${lbl[p.level]}</span></div>
+     <div class="prow"><span><b class="num">${px(p.price,p.cur)}</b></span><span>מאז קנייה ${pct(p.ret)}</span><span>יום ${pct(p.r1d)}</span>${p.value?`<span>שווי <b class="num">${px(p.value,p.cur)}</b></span>`:''}</div>
+     <div class="sub num">קנייה ${px(p.buy,p.cur)}${p.buy_date?' · '+esc(p.buy_date):''} · סטופ ${px(p.stop,p.cur)} · שלב ${p.stage} · RS ${p.rs} · ציון ${Math.round(p.score)}</div>
+     <ul class="rs ${p.level>=2?'warn':'good'}">${p.signals.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
+     ${p.notes?`<div class="sub">${esc(p.notes)}</div>`:''}
+   </div>`).join('')}</div>`;
+}
+let gMk='US';
+function renderGroups(){
+  const G=(D.industries||[]).filter(g=>g.mk===gMk);
+  $('#gTbl').innerHTML=`<thead><tr><th class="n">דירוג</th><th>ענף</th><th>סקטור</th><th class="n">מניות</th><th class="n">בשלב 2</th><th class="n">חודש</th><th class="n">3 ח'</th><th>המובילות</th></tr></thead><tbody>${G.map(g=>`<tr>
+   <td class="n num"><b>${g.rank}</b>/${g.of}</td><td>${esc(g.name)}</td><td>${esc(g.sector)}</td><td class="n num">${g.n}</td><td class="n num">${pctPlain(g.stage2)}</td><td class="n">${pct(g.r21)}</td><td class="n">${pct(g.r63)}</td>
+   <td class="tk" style="text-align:right">${g.leaders.map(x=>x.replace('.TA','')).join(' · ')}</td></tr>`).join('')}</tbody>`;
+}
+seg('#gMk',v=>{gMk=v;renderGroups()});
+function eqChart(c){
+  const W=640,H=220,P=28,n=c.d.length; if(n<2) return '';
+  const all=[...c.s,...c.b].map(Math.log), mn=Math.min(...all), mx=Math.max(...all);
+  const X=i=>P+(i/(n-1))*(W-2*P), Y=v=>H-P-((Math.log(v)-mn)/(mx-mn||1))*(H-2*P);
+  const line=(a,col,w)=>`<path d="${a.map((v,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1)).join('')}" fill="none" stroke="${col}" stroke-width="${w}" vector-effect="non-scaling-stroke"/>`;
+  const yrs=[...new Set(c.d.map(d=>d.slice(0,4)))];
+  const ticks=yrs.map(y=>{const i=c.d.findIndex(d=>d.startsWith(y));return `<text x="${X(i)}" y="${H-8}" font-size="10" fill="${css('--muted')}" text-anchor="middle">${y}</text>`}).join('');
+  return `<svg class="eq" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="עקומת הון מול S&P 500">
+   <line x1="${P}" x2="${W-P}" y1="${Y(1)}" y2="${Y(1)}" stroke="${css('--line')}" stroke-dasharray="3 3"/>${ticks}
+   ${line(c.b,css('--s200'),1.5)}${line(c.s,css('--accent'),2.2)}</svg>
+   <div class="legend"><span><i style="background:var(--accent)"></i>השיטה (10 מניות, החלפה חודשית)</span><span><i style="background:var(--s200)"></i>S&amp;P 500</span><span class="meta">סולם לוגריתמי · $1 בתחילת התקופה</span></div>`;
+}
+function renderBacktest(){
+  const B=D.backtest;
+  if(!B){$('#btSub').textContent='';$('#btBox').innerHTML='<div class="card method">הבדיקה לאחור רצה פעם בשבוע (מוצאי שבת). אפשר להפעיל אותה מיד: Actions ← Weekly backtest ← Run workflow.</div>';return}
+  const W=D.weights_src.startsWith('מכויל')?'calibrated':'base', S=B[W].stats, C=B[W].curve;
+  $('#btSub').textContent=`${B.years} שנים · ${B.universe.toLocaleString()} מניות (שווי מעל $1B) · 10 מניות, החלפה כל ${B.rebalance} ימי מסחר · עודכן ${B.date}`;
+  const k=(v,l)=>`<div class="card kpi"><b>${v}</b><span>${l}</span></div>`;
+  const IC=B.ic||{}, icMax=Math.max(0.02,...Object.values(IC).filter(x=>x!=null).map(Math.abs));
+  const names=Object.fromEntries(PARTS);
+  const cal=B.calibration||{};
+  $('#btBox').innerHTML=`<div class="kpis" style="margin-bottom:10px">
+     ${k(pct(S.cagr),'תשואה שנתית – השיטה')}${k(pct(S.spy_cagr),'תשואה שנתית – S&amp;P 500')}
+     ${k(pct(S.excess_m,2),'עודף תשואה ממוצע לחודש')}${k(`<span class="num">${pctPlain(S.beat_rate)}</span>`,'חודשים שהיכו את השוק')}
+     ${k(pct(S.max_dd,0),'ירידה מקסימלית (השיטה)')}${k(pct(S.spy_dd,0),'ירידה מקסימלית (S&amp;P)')}</div>
+   <div class="card" style="padding:12px;margin-bottom:12px">${eqChart(C)}</div>
+   <div class="two">
+    <div class="card method"><b>כמה כל רכיב "מנבא"</b><div class="sub" style="margin-bottom:8px">מתאם דירוג (IC) בין הרכיב לתשואה ב-3 החודשים הבאים. מעל 0.03 נחשב טוב.</div>
+     <div class="ic">${Object.entries(IC).map(([c,v])=>`<span>${names[c]||c}</span><div class="icb">${v==null?'':`<span style="background:${v>=0?css('--up'):css('--down')};${v>=0?'right':'left'}:50%;width:${Math.abs(v)/icMax*50}%"></span>`}</div><span class="num">${v==null?'לא נבדק':v.toFixed(3)}</span>`).join('')}</div></div>
+    <div class="card method"><b>משקלות</b> <span class="chip ${cal.adopted?'pat':''}">${cal.adopted?'הכיול אומץ':'נשארו ברירת המחדל'}</span>
+     <div class="sub" style="margin:4px 0 8px">כיול על ${esc(cal.train_end?'התקופה עד '+cal.train_end:'')} · נבדק על התקופה מ-${esc(cal.test_start||'')} שלא נראתה בכיול (עודף חודשי: ברירת מחדל ${pct(cal.test_excess_base,2)}, מכויל ${pct(cal.test_excess_blend,2)})</div>
+     <table><tr><th>רכיב</th><th class="n">ברירת מחדל</th><th class="n">מכויל</th><th class="n">בשימוש</th></tr>
+     ${Object.keys(B.base.weights).map(c=>`<tr><td>${names[c]||c}</td><td class="n num">${pctPlain(B.base.weights[c])}</td><td class="n num">${pctPlain(B.calibrated.weights[c])}</td><td class="n num"><b>${pctPlain(D.weights[c])}</b></td></tr>`).join('')}</table></div>
+   </div>
+   <div class="banner" style="margin-top:12px">מגבלות: (1) הטיית שורדים – נבדקו רק מניות שנסחרות היום, וזה מנפח את התוצאות; (2) אין נתונים פונדמנטליים היסטוריים בחינם – רכיב הצמיחה לא נבדק; (3) תבניות הגרף לא נבדקו; (4) בלי עמלות ומסים. התוצאה היא אינדיקציה לכיוון, לא הבטחה.</div>`;
+}
+
+function renderAll(){renderPortfolio();renderWatch();renderGroups();renderBacktest();renderMarket();renderPicks();renderHeat();renderThemes();renderCaps();renderTable();renderTrack();renderMethod()}
+renderAll();
+let rt; addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(renderHeat,150)});
+</script>
+</body>
+</html>
