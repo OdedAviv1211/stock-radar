@@ -162,20 +162,29 @@ def fundamentals(tickers, max_age_days=5):
             cache = {}
     cutoff = (datetime.utcnow() - timedelta(days=max_age_days)).isoformat()
     out = {}
+    empty_run, blocked = 0, False
     for n, t in enumerate(tickers):
         c = cache.get(t)
         if c and c.get("_ts", "") > cutoff:
             out[t] = c
             continue
         info = None
-        for attempt in range(3):
-            try:
-                raw = yf.Ticker(t).info or {}
-                info = {k: raw.get(k) for k in FUND_KEYS}
-                break
-            except Exception as e:  # noqa
-                log(f"info {t} attempt {attempt + 1}: {e}")
-                time.sleep(5 * (attempt + 1))
+        if not blocked:
+            for attempt in range(2):
+                try:
+                    raw = yf.Ticker(t).info or {}
+                    info = {k: raw.get(k) for k in FUND_KEYS}
+                    break
+                except Exception as e:  # noqa
+                    log(f"info {t} attempt {attempt + 1}: {e}")
+                    time.sleep(3)
+            # Yahoo לפעמים חוסם את שרתי GitHub (401 Invalid Crumb) ומחזיר תשובה ריקה – לא שומרים ריק במטמון
+            if info is not None and all(v is None for v in info.values()):
+                info = None
+            empty_run = 0 if info else empty_run + 1
+            if empty_run >= 8:
+                blocked = True
+                log("Yahoo fundamentals blocked from this server – fund score neutral, earnings dates from Nasdaq")
         if info is not None:
             info["_ts"] = datetime.utcnow().isoformat()
             cache[t] = info
@@ -184,9 +193,41 @@ def fundamentals(tickers, max_age_days=5):
             out[t] = c
         if n % 20 == 0:
             log(f"fundamentals {n}/{len(tickers)}")
-        time.sleep(0.4)
+        if not blocked:
+            time.sleep(0.4)
+    try:
+        cal = nasdaq_earnings(days=21)
+        for t in tickers:
+            if t in cal and not (out.get(t) or {}).get("earningsTimestamp"):
+                out.setdefault(t, {})["earningsTimestamp"] = cal[t]
+        log(f"earnings calendar (Nasdaq): {len(cal)} upcoming reports")
+    except Exception as e:  # noqa
+        log(f"earnings calendar failed: {e}")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     json.dump(cache, open(path, "w", encoding="utf-8"), ensure_ascii=False)
+    return out
+
+
+def nasdaq_earnings(days=21):
+    """לוח דוחות רבעוניים מ-Nasdaq: {טיקר: timestamp של יום הדוח}."""
+    out = {}
+    d0 = datetime.utcnow().date()
+    for i in range(days):
+        d = d0 + timedelta(days=i)
+        if d.weekday() >= 5:
+            continue
+        try:
+            r = requests.get("https://api.nasdaq.com/api/calendar/earnings", params={"date": d.isoformat()},
+                             headers=UA, timeout=20)
+            rows = ((r.json().get("data") or {}).get("rows")) or []
+        except Exception:  # noqa
+            continue
+        ts = datetime(d.year, d.month, d.day, 13).timestamp()
+        for row in rows:
+            sym = (row.get("symbol") or "").strip().upper()
+            if sym and sym not in out:
+                out[sym] = ts
+        time.sleep(0.3)
     return out
 
 
