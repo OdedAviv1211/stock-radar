@@ -82,9 +82,10 @@ def tg_send(token, chat, msg):
         if ch.get("type") == "private" and ch.get("id") not in found:
             found.append(ch.get("id"))
     for c in found:
-        print(f"chat id found from /start: {c} – save it in telegram_chat_id.txt")
         r = post(c)
         if r.ok:
+            open(os.path.join(ROOT, "telegram_chat_id.txt"), "w").write(str(c))
+            print("chat id saved to telegram_chat_id.txt")
             return r
     if r is None:
         print("no chat found – open your bot in Telegram and press Start")
