@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import requests
 
 from screener import data, watch
+from notify import tg_send
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 STATE = os.path.join(ROOT, "data", "watch_state.json")
@@ -72,11 +73,10 @@ def main():
         return
     msg = message(alerts)
     token, chat = os.environ.get("TELEGRAM_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
-    if not token or not chat:
+    if not token:
         print(msg)
         return
-    r = requests.post(f"https://api.telegram.org/bot{token}/sendMessage", timeout=30,
-                      data={"chat_id": chat, "text": msg[:4000], "parse_mode": "HTML", "disable_web_page_preview": "true"})
+    r = tg_send(token, chat, msg)
     print(r.status_code, r.text[:200])
     if not r.ok:
         sys.exit(1)
