@@ -56,6 +56,42 @@ def build(rep, url):
     return "\n".join(lines)
 
 
+def _file_chat():
+    p = os.path.join(ROOT, "telegram_chat_id.txt")
+    return open(p, encoding="utf-8").read().strip() if os.path.exists(p) else None
+
+
+def tg_send(token, chat, msg):
+    """שליחה לטלגרם. אם ה-CHAT_ID שגוי (למשל המספר של הבוט עצמו) – מאתר את הצ'אט שלך מהודעת Start ששלחת לבוט."""
+    api = f"https://api.telegram.org/bot{token}/"
+    bot_id = token.split(":")[0]
+    post = lambda c: requests.post(api + "sendMessage", timeout=30, data={
+        "chat_id": c, "text": msg[:4000], "parse_mode": "HTML", "disable_web_page_preview": "true"})
+    r = None
+    for c in [x.strip() for x in (chat, _file_chat()) if x and x.strip() != bot_id]:
+        r = post(c)
+        if r.ok:
+            return r
+    try:
+        ups = requests.get(api + "getUpdates", timeout=30).json().get("result", [])
+    except Exception:  # noqa
+        ups = []
+    found = []
+    for u in ups:
+        ch = (u.get("message") or u.get("my_chat_member") or {}).get("chat") or {}
+        if ch.get("type") == "private" and ch.get("id") not in found:
+            found.append(ch.get("id"))
+    for c in found:
+        print(f"chat id found from /start: {c} – save it in telegram_chat_id.txt")
+        r = post(c)
+        if r.ok:
+            return r
+    if r is None:
+        print("no chat found – open your bot in Telegram and press Start")
+        sys.exit(1)
+    return r
+
+
 def main():
     token, chat = os.environ.get("TELEGRAM_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
     rep = json.load(open(os.path.join(ROOT, "data", "latest.json"), encoding="utf-8"))
@@ -65,12 +101,11 @@ def main():
         owner, name = repo.split("/")
         url = f"https://{owner.lower()}.github.io/{name}/"
     msg = build(rep, url)
-    if not token or not chat:
+    if not token:
         print("TELEGRAM_TOKEN / TELEGRAM_CHAT_ID not set – printing message only:\n")
         print(msg)
         return
-    r = requests.post(f"https://api.telegram.org/bot{token}/sendMessage", timeout=30,
-                      data={"chat_id": chat, "text": msg[:4000], "parse_mode": "HTML", "disable_web_page_preview": "true"})
+    r = tg_send(token, chat, msg)
     print(r.status_code, r.text[:300])
     if not r.ok:
         sys.exit(1)
