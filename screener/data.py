@@ -165,7 +165,7 @@ def fundamentals(tickers, max_age_days=5):
     empty_run, blocked = 0, False
     for n, t in enumerate(tickers):
         c = cache.get(t)
-        if c and c.get("_ts", "") > cutoff:
+        if c and c.get("_ts", "") > cutoff and any(v is not None for k, v in c.items() if k != "_ts"):
             out[t] = c
             continue
         info = None
