@@ -124,6 +124,14 @@ input,select{font:inherit;font-size:13px;padding:6px 10px;border-radius:9px;bord
 .two{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
 
 /* brief + expand */
+details.blk{margin:6px 0 10px;border-bottom:2px solid var(--line);padding-bottom:6px}
+details.blk>summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:10px 0}
+details.blk>summary::-webkit-details-marker{display:none}
+details.blk>summary .bh{font-size:17px;font-weight:800}
+details.blk>summary .ex{font-size:12px;color:var(--accent)}
+details.blk[open]>summary .ex::after{content:'צמצום ▴'} details.blk:not([open])>summary .ex::after{content:'הרחבה ▾'}
+details.blk.sub2{border-bottom:1px dashed var(--line);margin:4px 0}
+details.blk.sub2>summary{padding:6px 0}
 #brief .bt{font-size:15px;margin:14px 0 6px;font-weight:700}
 details.bi{border-bottom:1px solid var(--line);padding:8px 2px}
 details.bi>summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:2px 8px;align-items:center}
@@ -161,7 +169,7 @@ details.nwd{margin-top:8px}details.nwd>summary{cursor:pointer;font-size:13px;col
 </header>
 
 <section id="brief">
-  <div class="sec-h"><div><h2>הדוח היומי</h2><div class="sub">תקציר אחד · לחיצה על שורה = הרחבה (נימוקים, מה נאמר בתקשורת ובדיווחים הרשמיים, מסקנה)</div></div></div>
+  <div class="sec-h"><div><h2>הדוח היומי</h2><div class="sub">1 · התיקים שלי ועמידה ביעד · 2 · ניתוח יומי · 3 · דוח מחקר — כל חלק נפתח ונסגר (הרחבה/צמצום), לחיצה על שורה = פירוט</div></div></div>
   <div class="card" style="padding:4px 14px 12px" id="briefBox"></div>
   <button class="morebtn" id="moreBtn" aria-expanded="false">הרחבה – הדוח המלא (גרפים, מפת חום, ענפים, סריקה, בדיקה לאחור) ▾</button>
 </section>
@@ -553,42 +561,67 @@ function newsHtml(t){
 function newsDetails(t){ const N=(D.news||{})[t]; return `<details class="nwd"><summary>מה נאמר${N&&N.items.length?` (${N.items.length})`:''}</summary>${newsHtml(t)}</details>`; }
 const LVL={3:'מכירה',2:'אזהרה',1:'לתשומת לב',0:'להחזיק'};
 function renderBrief(){
-  const reg=D.regime.map(r=>`${esc(r.name.split(' (')[0])}: <b>${esc(r.status)}</b>`).join(' · ');
-  let h=`<div class="bt">מצב השוק</div><div style="font-size:14px">${reg}</div>`;
+  const ils=v=>'₪'+Math.round(v).toLocaleString();
+  const yr=v=>v==null?'80+':String(v);
+  let h='';
+  // ===== 1. התיקים שלי =====
+  h+=`<details class="blk" open><summary><span class="bh">1 · התיקים שלי</span><span class="ex"></span></summary>`;
   const G=D.goal;
   if(G){
-    const ils=v=>'₪'+Math.round(v).toLocaleString();
-    const pa=Math.min(1,G.progress_a);
-    h+=`<div class="bt">היעד: ${ils(G.cfg.monthly_net_ils)} נטו לחודש מתיק החברה</div>
-    <details class="bi"><summary><b class="num">${(G.progress_a*100).toFixed(1)}%</b><span class="why">שווי היום ${ils(G.current_ils)} · נדרש ${ils(G.need_a)}–${ils(G.need_b)} (לפי משיכה של ${G.cfg.withdraw_rate*100}% בשנה)</span><span class="ex">הרחבה</span></summary>
-    <div class="bd"><div style="height:8px;background:var(--soft);border-radius:4px;overflow:hidden;margin:4px 0 8px"><div style="height:100%;width:${(pa*100).toFixed(1)}%;background:var(--accent)"></div></div>
-    <div class="sub">תרחיש א' (ההנחה שלך – 25% מס): צריך ${ils(G.need_a)}. תרחיש ב' (מס חברות ${G.cfg.tax_corp*100}% + דיבידנד ${G.cfg.tax_div*100}%): צריך ${ils(G.need_b)}.</div>
-    <table style="margin-top:8px"><tr><th>הפקדה חודשית</th><th class="n">תשואה שנתית</th><th class="n">שנים – א'</th><th class="n">שנים – ב'</th></tr>
-    ${G.scenarios.map(x=>`<tr><td class="num">${ils(x.contrib)}</td><td class="n num">${(x.r*100).toFixed(0)}%</td><td class="n num">${x.years_a??'80+'}</td><td class="n num">${x.years_b??'80+'}</td></tr>`).join('')}</table>
-    <div class="sub" style="margin-top:6px">המנוף הגדול הוא ההפקדה החודשית, לא בחירת המניה. 12% לשנה לאורך עשורים הוא תרחיש אופטימי (S&amp;P 500 היסטורית ≈10% נומינלי). לא כולל אינפלציה. כדאי לאמת את מיסוי החברה מול רו"ח – כללי "רווחים כלואים" החדשים עשויים לחול.</div></div></details>`;
+    const st=G.status, cls=st==='בקצב'?'tone-p':st.startsWith('מקדים')?'tone-p':'tone-n';
+    h+=`<div class="bt">יעד: ${ils(G.cfg.monthly_net_ils)} נטו לחודש מתיק החברה <span class="chip ${cls}">${esc(st)}</span></div>
+    <div style="font-size:14px">שווי היום <b class="num">${ils(G.current_ils)}</b> · לפי התוכנית היה צריך <b class="num">${ils(G.planned_ils)}</b> (${pct(G.gap,1)}) · התקדמות ליעד <b class="num">${(G.progress_a*100).toFixed(1)}%</b></div>
+    <div class="sub">בהפקדה של ${ils(G.cfg.monthly_contrib_ils)}/חודש ותשואה ${G.cfg.base_return*100}%: היעד (${ils(G.need_a)}) בעוד <b>${yr(G.base_years)}</b> שנים${G.base_year?' – בערך ב-'+Math.round(G.base_year):''}</div>
+    <div style="height:8px;background:var(--soft);border-radius:4px;overflow:hidden;margin:6px 0"><div style="height:100%;width:${Math.min(100,G.progress_a*100).toFixed(1)}%;background:var(--accent)"></div></div>
+    <div class="tw" style="max-height:none"><table><thead><tr><th>הפקדה לחודש</th>${G.grid[0].rows.map(r=>`<th class="n">${(r.r*100).toFixed(0)}%</th>`).join('')}</tr></thead><tbody>
+    ${G.grid.map(g=>`<tr${g.contrib===G.cfg.monthly_contrib_ils?' style="background:var(--accent-soft)"':''}><td class="num"><b>${ils(g.contrib)}</b>${g.contrib===G.cfg.monthly_contrib_ils?' (התוכנית)':''}</td>${g.rows.map(r=>`<td class="n num">${yr(r.a)}–${yr(r.b)} ש'</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+    <div class="sub">שנים עד היעד: מספר ראשון = מס 25% (₪${(G.need_a/1e6).toFixed(1)}M) · שני = מס חברות+דיבידנד (₪${(G.need_b/1e6).toFixed(1)}M) · משיכה ${G.cfg.withdraw_rate*100}% בשנה · לא כולל אינפלציה · לאמת מיסוי מול רו"ח</div>`;
+    const Pp=G.personal;
+    if(Pp){ h+=`<div class="bt">תיק אישי – ${Pp.years} שנה (עד ${Pp.end_year})</div>
+    <div style="font-size:14px">שווי היום <b class="num">${ils(Pp.current_ils)}</b> · הפקדה ${ils(Pp.contrib)}/חודש</div>
+    <div class="tw" style="max-height:none"><table><thead><tr><th>הפקדה לחודש</th>${Pp.returns.map(r=>`<th class="n">${(r*100).toFixed(0)}%</th>`).join('')}</tr></thead><tbody>
+    ${Pp.grid.map(g=>`<tr${g.contrib===Pp.contrib?' style="background:var(--accent-soft)"':''}><td class="num"><b>${ils(g.contrib)}</b>${g.contrib===Pp.contrib?' (התוכנית)':''}</td>${g.fv.map(v=>`<td class="n num">${ils(v)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+    <div class="sub">שווי צפוי בסוף התקופה (נומינלי, לפני מס).</div>`; }
   }
   const accts={}; (D.portfolio||[]).forEach(p=>{const k=p.acct||p.notes||'תיק';(accts[k]=accts[k]||[]).push(p)});
   Object.entries(accts).forEach(([an,list])=>{
     const tot=list.reduce((s,x)=>s+(x.value||0),0);
     const rows=list.slice().sort((x,y)=>(y.level||0)-(x.level||0)||(y.value||0)-(x.value||0));
-    const n3=rows.filter(r=>r.level>=3).length, n2=rows.filter(r=>r.level===2).length;
-    h+=`<div class="bt">${esc(an)} <span class="sub">· $${Math.round(tot).toLocaleString()} · ${rows.length} מניות · ${n3} לבחינה · ${n2} באזהרה</span></div>`;
+    const n3=rows.filter(r=>r.level>=3).length, n2=rows.filter(r=>r.level===2).length, nadd=rows.filter(r=>r.action==='אזור הוספה').length;
+    h+=`<details class="blk sub2" open><summary><span class="bt" style="margin:0">${esc(an)} <span class="sub">· $${Math.round(tot).toLocaleString()} · ${rows.length} מניות · ${nadd} להוספה · ${n2} באזהרה · ${n3} לבחינה</span></span><span class="ex"></span></summary>`;
     h+=rows.map(p=>{const sig=(p.signals||[p.status||''])[0];
-      return `<details class="bi"><summary><b class="tk">${esc(p.t.replace('.TA',''))}${p.weight!=null?` <span class="sub num">${(p.weight*100).toFixed(0)}%</span>`:''}</b><span class="why"><span class="lvl${p.level}">${esc(p.action||LVL[p.level])}</span> · ${esc(sig)}</span><span class="ex">${toneChip(((D.news||{})[p.t]||{}).verdict)} הרחבה</span></summary>
+      return `<details class="bi"><summary><b class="tk">${esc(p.t.replace('.TA',''))}${p.weight!=null?` <span class="sub num">${(p.weight*100).toFixed(0)}%</span>`:''}</b><span class="why"><span class="lvl${p.level}">${esc(p.action||LVL[p.level])}</span> · ${esc(sig)}</span><span class="ex">${toneChip(((D.news||{})[p.t]||{}).verdict)}</span></summary>
       <div class="bd">${p.price!=null?`<div class="sub num">מחיר ${px(p.price,p.cur)} · יום ${pct(p.r1d)} · ${p.ret==null?'':'מאז קנייה '+pct(p.ret)+' · '}שווי ${px(p.value,p.cur)} · שלב ${p.stage} · RS ${p.rs}${p.spec?' · ספקולטיבית':''}</div>
       <div class="sub num"><b>קו בחינה</b> ${px(p.review,p.cur)} (3% מתחת לממוצע 200 – סגירה מתחתיו = לבחון, לא מכירה אוטומטית)</div>`:''}
       <ul class="rs ${p.level>=2?'warn':'good'}">${(p.signals||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
       <div style="margin-top:8px"><b>מה נאמר</b></div>${newsHtml(p.t)}</div></details>`}).join('');
+    h+=`</details>`;
   });
+  h+=`</details>`;
+  // ===== 2. ניתוח יומי =====
+  const reg=D.regime.map(r=>`${esc(r.name.split(' (')[0])}: <b>${esc(r.status)}</b>`).join(' · ');
+  h+=`<details class="blk" open><summary><span class="bh">2 · ניתוח יומי</span><span class="ex"></span></summary>`;
+  h+=`<div class="bt">מצב השוק</div><div style="font-size:14px">${reg}</div>`;
   const W=(D.watch||[]).filter(w=>(w.events||[]).length);
-  if(W.length){ h+=`<div class="bt">רשימת המעקב – אירועים היום</div>`+W.map(w=>`<details class="bi"><summary><b class="tk">${esc(w.t)}</b><span class="why"><b>${esc(w.action)}</b> · ${esc(w.events[0].text)}</span><span class="ex">${toneChip(((D.news||{})[w.t]||{}).verdict)} הרחבה</span></summary>
+  if(W.length){ h+=`<div class="bt">רשימת המעקב – אירועים היום</div>`+W.map(w=>`<details class="bi"><summary><b class="tk">${esc(w.t)}</b><span class="why"><b>${esc(w.action)}</b> · ${esc(w.events[0].text)}</span><span class="ex">${toneChip(((D.news||{})[w.t]||{}).verdict)}</span></summary>
      <div class="bd"><div class="sub">${esc(w.sector)} · מחיר ${w.price.toFixed(2)} · ממוצע 20: ${pct(w.d20,1)} · מיכה ${w.micha}/6${w.stop?` · כניסה ${w.entry.toFixed(2)} / סטופ ${w.stop.toFixed(2)}`:''}</div>
      <ul class="rs">${w.events.map(e=>`<li>${esc(e.text)}</li>`).join('')}</ul><div style="margin-top:8px"><b>מה נאמר</b></div>${newsHtml(w.t)}</div></details>`).join(''); }
-  h+=`<div class="bt">10 המניות של היום</div>`+D.picks.map(p=>`<details class="bi"><summary><b class="tk">${p.rank}. ${esc(p.t.replace('.TA',''))}</b><span class="why">${esc(p.theme)} · ציון <b class="num">${Math.round(p.score)}</b> · RS ${p.rs}${p.earn!=null&&p.earn<=10?' · ⚠ דוח בעוד '+Math.max(0,p.earn)+' ימים':''}</span><span class="ex">${toneChip(((D.news||{})[p.t]||{}).verdict)} הרחבה</span></summary>
+  h+=`<div class="bt">10 המניות של היום</div>`+D.picks.map(p=>`<details class="bi"><summary><b class="tk">${p.rank}. ${esc(p.t.replace('.TA',''))}</b><span class="why">${esc(p.theme)} · ציון <b class="num">${Math.round(p.score)}</b> · RS ${p.rs}${p.earn!=null&&p.earn<=10?' · ⚠ דוח בעוד '+Math.max(0,p.earn)+' ימים':''}</span><span class="ex">${toneChip(((D.news||{})[p.t]||{}).verdict)}</span></summary>
      <div class="bd"><div class="sub">${esc(p.name||'')}</div><ul class="rs good">${(p.good||[]).slice(0,5).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>${(p.warn||[]).length?`<ul class="rs warn">${p.warn.slice(0,3).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
      ${p.plan?`<div class="sub num">כניסה ${p.plan.entry.toFixed(2)} · סטופ ${p.plan.stop.toFixed(2)} · ${esc(p.plan.target_src)} ${p.plan.target1.toFixed(2)}</div>`:''}
      <div style="margin-top:8px"><b>מה נאמר</b></div>${newsHtml(p.t)}</div></details>`).join('');
+  if(D.israel&&D.israel.length) h+=`<div class="sub" style="margin-top:8px">🇮🇱 ת"א: ${D.israel.map(p=>esc(p.t.replace('.TA',''))).join(' · ')}</div>`;
+  h+=`</details>`;
+  // ===== 3. דוח מחקר =====
+  h+=`<details class="blk" open><summary><span class="bh">3 · דוח מחקר – מה נאמר</span><span class="ex"></span></summary>`;
+  const pfT=[...new Set((D.portfolio||[]).map(p=>p.t))], all=[...pfT,...D.picks.map(p=>p.t)];
+  const hl=[]; all.forEach(t=>{const N=(D.news||{})[t]; if(N&&N.verdict&&['חיובי','שלילי'].includes(N.verdict.tone)&&N.items.length&&!hl.find(x=>x.t===t)) hl.push({t,N})});
+  const off=[]; all.forEach(t=>{const N=(D.news||{})[t]; (N?N.items:[]).filter(i=>i.official&&i.src==='SEC').slice(0,1).forEach(i=>off.push({t,i}))});
+  if(hl.length) h+=`<div class="bt">שיח מול גרף – המניות שלך והבחירות</div>`+hl.slice(0,8).map(({t,N})=>`<details class="bi"><summary><b class="tk">${esc(t)}</b><span class="why">${esc(N.verdict.conclusion||N.verdict.label)}</span><span class="ex">${toneChip(N.verdict)}</span></summary><div class="bd">${newsHtml(t)}</div></details>`).join('');
+  if(off.length) h+=`<div class="bt">דיווחים רשמיים ל-SEC השבוע</div><ul class="nws">${off.slice(0,10).map(({t,i})=>`<li><b class="tk">${esc(t)}</b> <a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.title)}</a> <span class="src">· ${esc(i.date)}</span></li>`).join('')}</ul>`;
+  if(!hl.length&&!off.length) h+=`<div class="sub">אין פרסומים מהותיים היום.</div>`;
   if(D.research_url) h+=`<div class="bt">אמירות פוליטיות ומאקרו</div><div style="font-size:14px">טראמפ, הבית הלבן, הפד, מאסק ומנכ"לי שרשרת ה-AI – ההשפעה על סקטורים ומניות: <a href="${esc(D.research_url)}" target="_blank" rel="noopener">חדר המחקר ←</a></div>`;
+  h+=`</details>`;
   $('#briefBox').innerHTML=h;
 }
 $('#moreBtn').onclick=()=>{const f=$('#full');f.hidden=!f.hidden;$('#moreBtn').setAttribute('aria-expanded',String(!f.hidden));$('#moreBtn').textContent=f.hidden?'הרחבה – הדוח המלא (גרפים, מפת חום, ענפים, סריקה, בדיקה לאחור) ▾':'סגירת הדוח המלא ▴';if(!f.hidden){renderHeat();}};
