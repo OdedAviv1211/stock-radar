@@ -7,7 +7,7 @@ from datetime import datetime
 
 import numpy as np
 
-from . import watch, analogs, config, data, micha, patterns, scoring, themes
+from . import news, watch, analogs, config, data, micha, patterns, scoring, themes
 from .indicators import compute
 
 ROOT = data.ROOT
@@ -104,7 +104,7 @@ def run(today=None):
     # ---- אינדיקטורים ----
     feats = {}
     for t, df in hist.items():
-        if t in benches or t not in meta:
+        if (t in benches and not meta.get(t, {}).get("pf_only")) or t not in meta:
             continue
         b = (ta["Close"] if ta is not None else None) if meta[t]["market"] == "TASE" else spy["Close"]
         try:
@@ -164,7 +164,7 @@ def run(today=None):
         mk = meta[t]["market"]
         min_dv = config.US_MIN_DOLLAR_VOL if mk == "US" else config.TASE_MIN_DOLLAR_VOL
         eligible = f["stage"] == 2 and f["dollar_vol"] >= min_dv and f["sma150_slope"] > 0 and \
-            (mk != "US" or f["price"] >= config.US_MIN_PRICE)
+            (mk != "US" or f["price"] >= config.US_MIN_PRICE) and not meta[t].get("pf_only")
         pats = patterns.detect(hist[t]) if eligible else []
         mch = micha.analyze(hist[t], pats) if (eligible or t in pf_set) else None
         grp = groups.get(gkey(t))
@@ -341,47 +341,97 @@ def run(today=None):
         w.writeheader()
         w.writerows(past)
 
-    # ---- התיק האישי ----
+    # ---- התיקים (נקודת מוצא: החזקה לטווח ארוך) ----
     pf_rows = []
+    acc_val = {}
     for pz in portfolio:
         t = pz["ticker"]
+        if t in feats and pz["shares"]:
+            acc_val[pz["notes"]] = acc_val.get(pz["notes"], 0) + feats[t]["price"] * pz["shares"]
+    for pz in portfolio:
+        t = pz["ticker"]
+        acc = config.ACCOUNTS.get(pz["notes"], {"label": pz["notes"] or "תיק", "max_weight": 0.25, "type": "long"})
         if t not in feats:
-            pf_rows.append({"t": t, "status": "לא נמצאו נתונים לטיקר", "level": 0})
+            pf_rows.append({"t": t, "status": "לא נמצאו נתונים לטיקר", "level": 0, "notes": pz["notes"], "acct": acc["label"]})
             continue
         f, x = feats[t], rows[t]
         price, buy = f["price"], pz["buy_price"]
         ret = price / buy - 1 if buy else None
-        stop = pz["stop"] or (buy * (1 - config.DEFAULT_STOP_PCT) if buy else None)
-        sig = []  # (רמה, טקסט): 3=מכירה, 2=אזהרה, 1=מידע
-        if stop and price <= stop:
-            sig.append((3, f"הסטופ נפגע ({stop:.2f}) – לפי הכללים: לצאת"))
-        if f["stage"] == 4:
-            sig.append((3, "שלב 4 – מתחת לממוצע 150 יורד (Weinstein: מכירה)"))
-        elif price < f["sma150"]:
-            sig.append((3, "נשברה מתחת לממוצע 150 – סימן מכירה לפי Weinstein"))
+        value = price * pz["shares"] if pz["shares"] else None
+        weight = value / acc_val[pz["notes"]] if value and acc_val.get(pz["notes"]) else None
+        sma200 = f["sma200"] if f.get("sma200") and not np.isnan(f["sma200"]) else f["sma150"]
+        review = pz["stop"] or sma200 * (1 - config.REVIEW_BELOW_SMA200)
+        mc = meta[t].get("mcap")
+        spec = price < config.SPEC_PRICE or (mc is not None and mc < config.SPEC_MCAP)
+        up = f["stage"] == 2
+        sig = []  # (רמה, טקסט): 3=לבחון יציאה, 2=אזהרה, 1=מידע, 0=תקין
+        if pz["stop"] and price <= pz["stop"]:
+            sig.append((3, f"הסטופ שהגדרת ({pz['stop']:.2f}) נפגע – לבחון יציאה"))
+        if f["stage"] == 4 and price < review:
+            sig.append((3, f"שבירה ארוכת טווח: שלב 4 ומתחת לקו הבחינה {review:.2f} – לבחון צמצום"
+                           + (" (מניה ספקולטיבית – לא להוסיף)" if spec else "")))
+        elif price < sma200:
+            sig.append((2, f"מתחת לממוצע 200 ({sma200:.2f}) – לבחון, לא למכור אוטומטית בתיק ארוך טווח"))
         elif price < f["sma50"]:
-            sig.append((2, "מתחת לממוצע 50 – חולשה, לעקוב"))
+            sig.append((1, "תיקון בתוך מגמה ארוכה – מתחת לממוצע 50"))
+        if weight is not None and weight > acc["max_weight"]:
+            sig.append((2, f"ריכוזיות: {weight * 100:.0f}% מהתיק (תקרה {acc['max_weight'] * 100:.0f}%) – לשקול איזון הדרגתי"))
+        if spec and weight is not None and weight > config.SPEC_MAX_WEIGHT:
+            sig.append((2, f"ספקולטיבית ב-{weight * 100:.0f}% מהתיק – מעל תקרה של {config.SPEC_MAX_WEIGHT * 100:.0f}%"))
         if x["earn"] is not None and x["earn"] <= config.EARNINGS_WARN_DAYS:
-            sig.append((2, f"דוח רבעוני בעוד {max(0, x['earn'])} ימים"))
-        if ret is not None and ret >= config.TAKE_PROFIT_PCT:
-            sig.append((1, f"ברווח {ret * 100:.0f}% – לשקול מימוש חלקי (כלל O'Neil 20–25%)"))
+            sig.append((1, f"דוח רבעוני בעוד {max(0, x['earn'])} ימים – לא להוסיף לפני הדוח"))
         mcp = x.get("micha")
-        if mcp and "שברה" in mcp["checks"][3]["note"]:
-            sig.append((2, "שבר את קו המגמה העולה (שיטת מיכה: מכירה בשבירת הקו)"))
         if mcp and mcp.get("hs"):
             sig.append((2, "תבנית ראש וכתפיים – סימן היפוך"))
-        if f["updown"] < 0.8:
-            sig.append((2, "נפח בימי ירידה גבוה – חלוקה מוסדית"))
+        # פעולה מומלצת לטווח ארוך
+        d20, d50 = price / f["sma20"] - 1 if f.get("sma20") else None, price / f["sma50"] - 1
+        if any(l >= 3 for l, _ in sig):
+            action = "לבחון צמצום"
+        elif weight is not None and weight > acc["max_weight"]:
+            action = "להחזיק – לא להוסיף (לאזן)"
+        elif up and not spec and (0 <= d50 <= 0.04 or (d20 is not None and 0 <= d20 <= 0.02)):
+            action = "אזור הוספה"
+            sig.append((0, "מגמה עולה ותיקון לממוצע 20/50 – נקודת הוספה לטווח ארוך"))
+        elif up and f["ext_sma150"] > 0.40:
+            action = "להחזיק – מתוחה, להוסיף רק בתיקון"
+        elif price < sma200:
+            action = "להחזיק בזהירות"
+        else:
+            action = "להחזיק"
         if not sig:
-            sig.append((0, "המגמה תקינה – להחזיק"))
+            sig.append((0, "המגמה הארוכה תקינה – להחזיק"))
         lvl = max(l for l, _ in sig)
         pf_rows.append({"t": t, "name": meta[t]["name"], "cur": "אג'" if t.endswith(".TA") else "$",
                         "buy": buy, "buy_date": pz["buy_date"], "shares": pz["shares"], "price": price,
-                        "ret": ret, "r1d": f["r1d"], "stop": stop,
-                        "value": price * pz["shares"] if pz["shares"] else None, "score": x["score"],
+                        "ret": ret, "r1d": f["r1d"], "stop": review, "review": review, "sma200": sma200,
+                        "value": value, "weight": weight, "spec": spec, "action": action, "score": x["score"],
                         "rs": x["rs"], "stage": f["stage"], "ext150": f["ext_sma150"], "earn": x["earn"],
-                        "signals": [t2 for _, t2 in sorted(sig, reverse=True)], "level": lvl,
-                        "notes": pz["notes"]})
+                        "signals": [t2 for _, t2 in sorted(sig, key=lambda z: -z[0])], "level": lvl,
+                        "notes": pz["notes"], "acct": acc["label"]})
+
+    # ---- יעד: הכנסה חודשית מתיק החברה ----
+    goal = None
+    try:
+        G = config.GOAL
+        comp = [k for k, v in config.ACCOUNTS.items() if v["type"] == "company"]
+        cur = sum(acc_val.get(k, 0) for k in comp) * fx
+        net_y = G["monthly_net_ils"] * 12
+        need = {"a": net_y / (1 - G["tax_simple"]) / G["withdraw_rate"],
+                "b": net_y / ((1 - G["tax_corp"]) * (1 - G["tax_div"])) / G["withdraw_rate"]}
+        def years(target, r, c):
+            v, n = cur, 0
+            while v < target and n < 80:
+                v = v * (1 + r) + c * 12
+                n += 1
+            return n if v >= target else None
+        sc = []
+        for c in sorted({G["monthly_contrib_ils"], 5000, 10000, 20000}):
+            for r in G["returns"]:
+                sc.append({"contrib": c, "r": r, "years_a": years(need["a"], r, c), "years_b": years(need["b"], r, c)})
+        goal = {"current_ils": cur, "need_a": need["a"], "need_b": need["b"], "progress_a": cur / need["a"],
+                "progress_b": cur / need["b"], "scenarios": sc, "cfg": G}
+    except Exception as e:  # noqa
+        log(f"goal skipped: {e}")
 
     # ---- ענפים מובילים ----
     ind = []
@@ -413,7 +463,7 @@ def run(today=None):
         "counts": {"universe": len(meta), "analyzed": len(feats), "eligible": len(elig), "fund": len(cand),
                    "us": len(us_t), "tase": len(tase_t)},
         "watch": watch_rows(wl, hist),
-        "fx": fx, "weights": scoring.W, "weights_src": weights_src, "portfolio": pf_rows,
+        "goal": goal, "fx": fx, "weights": scoring.W, "weights_src": weights_src, "portfolio": pf_rows,
         "industries": ind, "backtest": bt,
         "regime": [regime(spy, "S&P 500 (SPY)"), regime(hist.get(config.BENCH_US2), "נאסד\"ק 100 (QQQ)"),
                    regime(ta, "ת\"א 125")],
@@ -425,6 +475,18 @@ def run(today=None):
         "analogs": [{k: a[k] for k in ("ticker", "date", "label", "fwd6", "fwd12")} for a in lib],
     }
     report["research_url"] = getattr(config, "RESEARCH_URL", "")
+    # ---- מה נאמר: דיווחים רשמיים + תקשורת מובילה, מול מצב הגרף ----
+    try:
+        nt = [r["t"] for r in pf_rows] + [p["t"] for p in report["picks"]] + [w["t"] for w in report["watch"]]
+        tech = {t: bool(feats[t]["price"] > feats[t]["sma150"] and feats[t]["sma150_slope"] > 0)
+                for t in nt if t in feats}
+        for w in report["watch"]:
+            if "uptrend" in w:
+                tech[w["t"]] = w["uptrend"]
+        report["news"] = news.collect(nt, tech)
+    except Exception as e:  # noqa
+        log(f"news skipped: {e}")
+        report["news"] = {}
     # מחירי סגירה של מניות המעקב – למודול המחקר (חישוב תגובה לאמירות)
     try:
         wt = list(dict.fromkeys(getattr(config, "WATCH_TICKERS", []) + [p["t"] for p in report["picks"]]))
@@ -450,5 +512,15 @@ def run(today=None):
     open(os.path.join(ROOT, "docs", "index.html"), "w", encoding="utf-8").write(html)
     open(os.path.join(ROOT, "docs", "archive", f"{asof}.html"), "w", encoding="utf-8").write(html)
     json.dump(report, open(os.path.join(ROOT, "data", "latest.json"), "w", encoding="utf-8"), ensure_ascii=False)
+    # תקציר קטן לקריאה מהירה (טלגרם / Claude)
+    summ = {"asof": asof, "generated": report["generated"], "weights_src": weights_src,
+            "regime": [f"{r['name']}: {r['status']}" for r in report["regime"]],
+            "picks": [[p["t"], round(p["score"]), p["theme"]] for p in report["picks"]],
+            "israel": [[p["t"], round(p["score"])] for p in report["israel"]],
+            "portfolio": [[r["t"], r.get("notes", ""), r.get("level"), (r.get("signals") or [r.get("status")])[0],
+                           None if r.get("ret") is None else round(r["ret"] * 100, 1)] for r in pf_rows],
+            "watch": [[w["t"], w.get("action"), [e["text"] for e in w.get("events", [])]] for w in report["watch"]],
+            "news": {t: v["verdict"] for t, v in report.get("news", {}).items()}}
+    json.dump(summ, open(os.path.join(ROOT, "data", "summary.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=0)
     log(f"done in {report['runtime_min']:.1f} min – top: {[p['t'] for p in report['picks']]}")
     return report
