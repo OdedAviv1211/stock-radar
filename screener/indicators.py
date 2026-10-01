@@ -94,7 +94,7 @@ def compute(df, bench_close=None, with_series=False):
     ]
 
     f = {
-        "price": price, "sma50": sma50, "sma150": sma150, "sma200": sma200,
+        "price": price, "sma20": float(c.iloc[-20:].mean()), "sma50": sma50, "sma150": sma150, "sma200": sma200,
         "sma150_slope": sma150_slope, "sma200_slope": sma200_slope,
         "ext_sma150": price / sma150 - 1, "ext_sma50": price / sma50 - 1, "sma50_vs_150": sma50 / sma150 - 1,
         "hi52": hi52, "lo52": lo52, "dist_hi": price / hi52 - 1, "above_lo": price / lo52 - 1,
