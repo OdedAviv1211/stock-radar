@@ -18,7 +18,7 @@ def pct(x, d=1):
 
 def build(rep, url):
     e = html.escape
-    lines = [f"📈 <b>רדאר מניות יומי</b> · {e(rep['asof'])}"]
+    lines = [f"📈 <b>הדוח היומי</b> · סגירה {e(rep['asof'])}"]
     gen = rep.get("generated", "")
     try:
         age_h = (datetime.now(timezone.utc) - datetime.strptime(gen, "%Y-%m-%d %H:%M UTC").replace(tzinfo=timezone.utc)).total_seconds() / 3600
@@ -26,33 +26,60 @@ def build(rep, url):
         age_h = 0
     if age_h > 30:
         lines.append(f"⚠️ הדוח לא התעדכן מאז {e(gen)} – כנראה שהריצה הלילית נכשלה (לבדוק בלשונית Actions).")
-    reg = " · ".join(f"{e(r['name'].split(' (')[0])}: {e(r['status'])}" for r in rep["regime"])
-    lines += ["", f"<b>מצב השוק</b>\n{reg}"]
-    if rep["regime"][0].get("level", 0) < 0:
-        lines.append("⚠️ S&amp;P 500 מתחת לממוצע 150 – להקטין סיכון.")
+    lines.append(" · ".join(f"{e(r['name'].split(' (')[0])}: {e(r['status'])}" for r in rep["regime"]))
+    news = rep.get("news", {})
+    tone = lambda t: {"חיובי": " 🟢שיח", "שלילי": " 🔴שיח"}.get((news.get(t, {}).get("verdict") or {}).get("tone"), "")
 
-    pf = [p for p in rep.get("portfolio", []) if p.get("level", 0) >= 2]
-    if pf:
-        lines += ["", "<b>🔔 התיק שלך</b>"]
-        for p in pf:
-            icon = "🔴" if p["level"] >= 3 else "🟠"
-            lines.append(f"{icon} <b>{e(p['t'])}</b> {pct(p.get('ret'))} – {e(p['signals'][0])}")
+    g = rep.get("goal")
+    if g:
+        lines += ["", f"<b>🎯 יעד ₪{g['cfg']['monthly_net_ils']:,}/חודש:</b> {g['progress_a'] * 100:.1f}% "
+                      f"(₪{g['current_ils']:,.0f} מתוך ₪{g['need_a']:,.0f}–{g['need_b']:,.0f})"]
+    by = {}
+    accts = {}
+    for p in rep.get("portfolio", []):
+        by.setdefault(p["t"], []).append(p)
+        accts.setdefault(p.get("acct") or p.get("notes") or "תיק", []).append(p)
+    for an, lst in accts.items():
+        lst = sorted(lst, key=lambda x: -(x.get("level") or 0))
+        act = [p for p in lst if (p.get("level") or 0) >= 2]
+        add = [p["t"] for p in lst if p.get("action") == "אזור הוספה"]
+        lines += ["", f"<b>💼 {e(an)}</b> · {len(lst)} מניות"]
+        for p in act[:6]:
+            lines.append(f"{'🔴' if p['level'] >= 3 else '🟠'} <b>{e(p['t'])}</b> {e(p.get('action', ''))} – {e(p['signals'][0])}{tone(p['t'])}")
+        if add:
+            lines.append("➕ אזור הוספה: " + ", ".join(e(t) for t in add))
+        ok = [p["t"] for p in lst if (p.get("level") or 0) < 2 and p["t"] not in add]
+        if ok:
+            lines.append("🟢 להחזיק: " + ", ".join(e(t) for t in ok))
 
-    lines += ["", "<b>10 המניות של היום</b>"]
+    ev = [w for w in rep.get("watch", []) if any(x.get("u", 0) >= 2 for x in w.get("events", []))]
+    if ev:
+        lines += ["", "<b>⚡ רשימת המעקב</b>"]
+        for w in ev[:6]:
+            lines.append(f"• <b>{e(w['t'])}</b> – {e(w['events'][0]['text'])} ➜ {e(w.get('action', ''))}")
+
+    lines += ["", "<b>🔟 המניות של היום</b>"]
     for p in rep["picks"]:
-        extra = []
-        if p.get("pats"):
-            extra.append(p["pats"][0]["name"])
-        if p.get("earn") is not None and p["earn"] <= 10:
-            extra.append(f"⚠️ דוח בעוד {max(0, p['earn'])} ימים")
-        ex = f" · {e(' · '.join(extra))}" if extra else ""
-        lines.append(f"{p['rank']}. <b>{e(p['t'].replace('.TA', ''))}</b> · {e(p['theme'])} · ציון {round(p['score'])} · RS {p['rs']}{ex}")
+        ex = f" · ⚠️ דוח בעוד {max(0, p['earn'])} ימים" if p.get("earn") is not None and p["earn"] <= 10 else ""
+        lines.append(f"{p['rank']}. <b>{e(p['t'].replace('.TA', ''))}</b> · {e(p['theme'])} · {round(p['score'])}{ex}{tone(p['t'])}")
     if rep.get("israel"):
-        lines += ["", "<b>🇮🇱 ת\"א:</b> " + " · ".join(f"{e(p['t'].replace('.TA', ''))} ({round(p['score'])})" for p in rep["israel"])]
-    hot = [t for t in rep.get("industries", []) if t["mk"] == "US"][:3]
-    if hot:
-        lines += ["", "<b>ענפים מובילים:</b> " + " · ".join(e(g["name"]) for g in hot)]
-    lines += ["", f'<a href="{e(url)}">לדשבורד המלא ←</a>', "<i>כלי סינון אוטומטי, לא ייעוץ השקעות.</i>"]
+        lines.append("🇮🇱 " + " · ".join(e(p["t"].replace(".TA", "")) for p in rep["israel"]))
+
+    hl = []
+    for t in list(by) + [p["t"] for p in rep["picks"]]:
+        v = (news.get(t) or {}).get("verdict") or {}
+        it = (news.get(t) or {}).get("items") or []
+        if v.get("tone") in ("חיובי", "שלילי") and it and t not in [h[0] for h in hl]:
+            hl.append((t, v, it[0]))
+    if hl:
+        lines += ["", "<b>📰 מה נאמר</b>"]
+        for t, v, it in hl[:5]:
+            lines.append(f"• <b>{e(t)}</b>: {e(it['title'][:90])} ({e(it['src'])}) – {e(v.get('conclusion', ''))}")
+
+    links = [f'<a href="{e(url)}">הדוח המלא עם הרחבות ←</a>']
+    if rep.get("research_url"):
+        links.append(f'<a href="{e(rep["research_url"])}">חדר המחקר (אמירות טראמפ/פד/מאסק) ←</a>')
+    lines += ["", "\n".join(links), "<i>כלי סינון אוטומטי, לא ייעוץ השקעות.</i>"]
     return "\n".join(lines)
 
 
