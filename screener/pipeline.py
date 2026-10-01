@@ -409,27 +409,52 @@ def run(today=None):
                         "signals": [t2 for _, t2 in sorted(sig, key=lambda z: -z[0])], "level": lvl,
                         "notes": pz["notes"], "acct": acc["label"]})
 
-    # ---- יעד: הכנסה חודשית מתיק החברה ----
+    comp_labels = {v["label"] for v in config.ACCOUNTS.values() if v["type"] == "company"}
+    pf_rows.sort(key=lambda r: 0 if r.get("acct") in comp_labels else 1)
+
+    # ---- יעד: הכנסה חודשית מתיק החברה + תוכנית לתיק האישי ----
     goal = None
     try:
         G = config.GOAL
-        comp = [k for k, v in config.ACCOUNTS.items() if v["type"] == "company"]
-        cur = sum(acc_val.get(k, 0) for k in comp) * fx
+        val_ils = lambda typ: sum(acc_val.get(k, 0) for k, v in config.ACCOUNTS.items() if v["type"] == typ) * fx
+        cur = val_ils("company")
         net_y = G["monthly_net_ils"] * 12
         need = {"a": net_y / (1 - G["tax_simple"]) / G["withdraw_rate"],
                 "b": net_y / ((1 - G["tax_corp"]) * (1 - G["tax_div"])) / G["withdraw_rate"]}
+
+        def fv(v0, r, c, months):
+            rm = (1 + r) ** (1 / 12) - 1
+            return v0 * (1 + rm) ** months + (c * ((1 + rm) ** months - 1) / rm if rm else c * months)
+
         def years(target, r, c):
             v, n = cur, 0
-            while v < target and n < 80:
-                v = v * (1 + r) + c * 12
+            while v < target and n < 80 * 12:
+                v = fv(v, r, c, 1)
                 n += 1
-            return n if v >= target else None
-        sc = []
-        for c in sorted({G["monthly_contrib_ils"], 5000, 10000, 20000}):
-            for r in G["returns"]:
-                sc.append({"contrib": c, "r": r, "years_a": years(need["a"], r, c), "years_b": years(need["b"], r, c)})
+            return round(n / 12, 1) if v >= target else None
+
+        grid = [{"contrib": c, "rows": [{"r": r, "a": years(need["a"], r, c), "b": years(need["b"], r, c)}
+                                        for r in G["returns"]]} for c in G["contrib_grid"]]
+        d0 = datetime.strptime(G["start_date"], "%Y-%m-%d")
+        months = max(0, (datetime.utcnow() - d0).days / 30.44)
+        planned = fv(G["start_value_ils"], G["base_return"], G["monthly_contrib_ils"], months)
+        gap = cur / planned - 1 if planned else 0
+        status = "מקדים את התוכנית" if gap > 0.03 else "מפגר אחרי התוכנית" if gap < -0.03 else "בקצב"
+        base_y = years(need["a"], G["base_return"], G["monthly_contrib_ils"])
         goal = {"current_ils": cur, "need_a": need["a"], "need_b": need["b"], "progress_a": cur / need["a"],
-                "progress_b": cur / need["b"], "scenarios": sc, "cfg": G}
+                "progress_b": cur / need["b"], "grid": grid, "cfg": G, "planned_ils": planned, "gap": gap,
+                "status": status, "base_years": base_y,
+                "base_year": (d0.year + base_y) if base_y else None}
+        P = config.PERSONAL_PLAN
+        pcur = val_ils("long")
+        p0 = datetime.strptime(P["start_date"], "%Y-%m-%d")
+        pm = max(0, (datetime.utcnow() - p0).days / 30.44)
+        left = max(0, P["years"] * 12 - pm)
+        goal["personal"] = {"current_ils": pcur, "contrib": P["monthly_contrib_ils"], "years": P["years"],
+                            "end_year": p0.year + P["years"],
+                            "planned_ils": fv(P["start_value_ils"], G["base_return"], P["monthly_contrib_ils"], pm),
+                            "grid": [{"contrib": c, "fv": [fv(pcur, r, c, left) for r in P["returns"]]}
+                                     for c in P["contrib_grid"]], "returns": P["returns"]}
     except Exception as e:  # noqa
         log(f"goal skipped: {e}")
 
