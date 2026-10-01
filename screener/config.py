@@ -63,3 +63,24 @@ RESEARCH_URL = "https://claude.ai/artifact/C2w34x7A5cZLXmqjvMYGzb"   # דף חד
 # מניות שמודול המחקר עוקב אחריהן – המחירים שלהן נשמרים ב-data/watch_prices.json לחישוב תגובות
 WATCH_TICKERS = ["SPY", "QQQ", "IWM", "XLF", "TLT", "NVDA", "AMD", "AVGO", "TSM", "MU", "MSFT", "META", "GOOGL",
                  "AMZN", "ORCL", "INTC", "TSLA", "TEVA", "GM", "CTSH", "PFE", "FSLR", "AA", "CVX", "BTU"]
+
+# ---- תיקים לטווח ארוך (נקודת המוצא: להחזיק) ----
+# העמודה notes ב-portfolio.csv קובעת לאיזה תיק שייכת השורה.
+ACCOUNTS = {
+    "תיק ראשי": {"label": "תיק החברה – בנייה ליעד הכנסה", "max_weight": 0.20, "type": "company"},
+    "תיק אישי": {"label": "תיק אישי – 35 שנה+", "max_weight": 0.25, "type": "long"},
+}
+REVIEW_BELOW_SMA200 = 0.03   # "קו בחינה": 3% מתחת לממוצע 200 (≈ 40 שבועות, Weinstein) – בחינה, לא מכירה אוטומטית
+SPEC_PRICE, SPEC_MCAP = 5.0, 2e9   # מניה ספקולטיבית: מחיר < $5 או שווי < $2B
+SPEC_MAX_WEIGHT = 0.05       # תקרה למניה ספקולטיבית בודדת
+
+# ---- יעד הכנסה מתיק החברה ----
+GOAL = {
+    "monthly_net_ils": 20000,       # הכנסה נטו רצויה לחודש
+    "tax_simple": 0.25,             # תרחיש א': 25% מס רווח הון (ההנחה שלך)
+    "tax_corp": 0.23,               # תרחיש ב': מס חברות 2026 על רווח שמומש בחברה
+    "tax_div": 0.30,                # + מס דיבידנד לבעל מניות מהותי
+    "withdraw_rate": 0.04,          # קצב משיכה שנתי בר-קיימא (כלל 4%)
+    "monthly_contrib_ils": 5000,    # הפקדה חודשית לתיק החברה (כ-5,000 ₪, ייתכן יותר)
+    "returns": [0.08, 0.12, 0.15],  # תרחישי תשואה שנתית
+}
