@@ -26,16 +26,17 @@ def build(rep, url):
         age_h = 0
     if age_h > 30:
         lines.append(f"⚠️ הדוח לא התעדכן מאז {e(gen)} – כנראה שהריצה הלילית נכשלה (לבדוק בלשונית Actions).")
-    lines.append(" · ".join(f"{e(r['name'].split(' (')[0])}: {e(r['status'])}" for r in rep["regime"]))
     news = rep.get("news", {})
     tone = lambda t: {"חיובי": " 🟢שיח", "שלילי": " 🔴שיח"}.get((news.get(t, {}).get("verdict") or {}).get("tone"), "")
 
+    # ===== 1. התיקים שלי =====
+    lines += ["", "<b>━━ 1 · התיקים שלי ━━</b>"]
     g = rep.get("goal")
     if g:
-        lines += ["", f"<b>🎯 יעד ₪{g['cfg']['monthly_net_ils']:,}/חודש:</b> {g['progress_a'] * 100:.1f}% "
-                      f"(₪{g['current_ils']:,.0f} מתוך ₪{g['need_a']:,.0f}–{g['need_b']:,.0f})"]
-    by = {}
-    accts = {}
+        lines.append(f"🎯 יעד ₪{g['cfg']['monthly_net_ils']:,}/חודש: <b>{e(g['status'])}</b> "
+                     f"(₪{g['current_ils']:,.0f} מול תוכנית ₪{g['planned_ils']:,.0f}) · "
+                     f"{g['progress_a'] * 100:.1f}% מהיעד · ~{g['base_years'] if g['base_years'] is not None else '80+'} שנים בהפקדה ₪{g['cfg']['monthly_contrib_ils']:,}")
+    by, accts = {}, {}
     for p in rep.get("portfolio", []):
         by.setdefault(p["t"], []).append(p)
         accts.setdefault(p.get("acct") or p.get("notes") or "תיק", []).append(p)
@@ -44,38 +45,41 @@ def build(rep, url):
         act = [p for p in lst if (p.get("level") or 0) >= 2]
         add = [p["t"] for p in lst if p.get("action") == "אזור הוספה"]
         lines += ["", f"<b>💼 {e(an)}</b> · {len(lst)} מניות"]
-        for p in act[:6]:
-            lines.append(f"{'🔴' if p['level'] >= 3 else '🟠'} <b>{e(p['t'])}</b> {e(p.get('action', ''))} – {e(p['signals'][0])}{tone(p['t'])}")
         if add:
             lines.append("➕ אזור הוספה: " + ", ".join(e(t) for t in add))
+        for p in act[:6]:
+            lines.append(f"{'🔴' if p['level'] >= 3 else '🟠'} <b>{e(p['t'])}</b> {e(p.get('action', ''))} – {e(p['signals'][0])}{tone(p['t'])}")
         ok = [p["t"] for p in lst if (p.get("level") or 0) < 2 and p["t"] not in add]
         if ok:
             lines.append("🟢 להחזיק: " + ", ".join(e(t) for t in ok))
 
+    # ===== 2. ניתוח יומי =====
+    lines += ["", "<b>━━ 2 · ניתוח יומי ━━</b>",
+              " · ".join(f"{e(r['name'].split(' (')[0])}: {e(r['status'])}" for r in rep["regime"])]
     ev = [w for w in rep.get("watch", []) if any(x.get("u", 0) >= 2 for x in w.get("events", []))]
     if ev:
-        lines += ["", "<b>⚡ רשימת המעקב</b>"]
+        lines.append("<b>⚡ רשימת המעקב</b>")
         for w in ev[:6]:
             lines.append(f"• <b>{e(w['t'])}</b> – {e(w['events'][0]['text'])} ➜ {e(w.get('action', ''))}")
-
-    lines += ["", "<b>🔟 המניות של היום</b>"]
+    lines.append("<b>🔟 המניות של היום</b>")
     for p in rep["picks"]:
         ex = f" · ⚠️ דוח בעוד {max(0, p['earn'])} ימים" if p.get("earn") is not None and p["earn"] <= 10 else ""
         lines.append(f"{p['rank']}. <b>{e(p['t'].replace('.TA', ''))}</b> · {e(p['theme'])} · {round(p['score'])}{ex}{tone(p['t'])}")
     if rep.get("israel"):
         lines.append("🇮🇱 " + " · ".join(e(p["t"].replace(".TA", "")) for p in rep["israel"]))
 
+    # ===== 3. דוח מחקר =====
+    lines += ["", "<b>━━ 3 · דוח מחקר ━━</b>"]
     hl = []
     for t in list(by) + [p["t"] for p in rep["picks"]]:
         v = (news.get(t) or {}).get("verdict") or {}
         it = (news.get(t) or {}).get("items") or []
         if v.get("tone") in ("חיובי", "שלילי") and it and t not in [h[0] for h in hl]:
             hl.append((t, v, it[0]))
-    if hl:
-        lines += ["", "<b>📰 מה נאמר</b>"]
-        for t, v, it in hl[:5]:
-            lines.append(f"• <b>{e(t)}</b>: {e(it['title'][:90])} ({e(it['src'])}) – {e(v.get('conclusion', ''))}")
-
+    for t, v, it in hl[:5]:
+        lines.append(f"• <b>{e(t)}</b>: {e(it['title'][:90])} ({e(it['src'])}) – {e(v.get('conclusion', ''))}")
+    if not hl:
+        lines.append("אין פרסומים מהותיים היום.")
     links = [f'<a href="{e(url)}">הדוח המלא עם הרחבות ←</a>']
     if rep.get("research_url"):
         links.append(f'<a href="{e(rep["research_url"])}">חדר המחקר (אמירות טראמפ/פד/מאסק) ←</a>')
