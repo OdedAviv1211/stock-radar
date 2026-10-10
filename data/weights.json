@@ -1,15 +1,15 @@
 {
  "weights": {
-  "trend": 0.1322,
-  "rs": 0.3483,
+  "trend": 0.1182,
+  "rs": 0.4134,
   "fund": 0.16,
-  "group": 0.1618,
-  "analog": 0.0674,
-  "setup": 0.0678,
-  "accum": 0.0626
+  "group": 0.0704,
+  "analog": 0.0658,
+  "setup": 0.0649,
+  "accum": 0.1072
  },
  "adopted": true,
- "date": "2026-10-04",
- "test_excess_base": 0.0094,
- "test_excess_blend": 0.02201
+ "date": "2026-10-10",
+ "test_excess_base": 0.02008,
+ "test_excess_blend": 0.0292
 }
