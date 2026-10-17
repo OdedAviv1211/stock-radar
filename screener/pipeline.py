@@ -117,7 +117,11 @@ def exec_summary(rep):
     if pf:
         parts = []
         if red:
-            parts.append(f"לבחון צמצום: {', '.join(red)}")
+            tx = {}
+            for p_ in pf:
+                if p_["t"] in red and p_.get("tax_est"):
+                    tx[p_["t"]] = tx.get(p_["t"], 0) + p_["tax_est"]
+            parts.append(f"לבחון צמצום: {', '.join(t_ + (f' (מס משוער ${tx[t_]:,.0f})' if tx.get(t_) else ' (בהפסד – אין מס)') for t_ in red)}")
         if conc:
             parts.append(f"משקל יתר: {', '.join(conc)}")
         if add:
@@ -142,9 +146,36 @@ def exec_summary(rep):
         if big[1] >= 5:
             txt += f" · ⚠ ריכוז: {big[1]} מתוך {len(pk)} ב{big[0]} – הימור אחד, לא 10"
         out.append({"k": "המלצות היום", "lv": 1 if big[1] >= 5 else 0, "t": txt})
-    stp = [x["t"] for x in rep.get("pick_track", []) if x.get("alert") and "מתחת לסטופ המסחר" in x["alert"]]
+    stp_all = [x for x in rep.get("pick_track", []) if x.get("alert") and "מתחת לסטופ המסחר" in x["alert"]]
+    stp = [x["t"] for x in stp_all if x.get("held")]
     if stp:
-        out.append({"k": "סטופ", "lv": 2, "t": f"{len(stp)} המלצות קודמות מתחת לסטופ המסחר: {', '.join(stp[:8])} – מי שנכנס לטווח קצר: לצאת. 🌳 לטווח ארוך: לפי קו הבחינה בלבד"})
+        out.append({"k": "סטופ – מניות שקנית", "lv": 3, "t": f"{', '.join(stp)} מתחת לסטופ המסחר – אם נקנו לטווח קצר: לצאת. 🌳 לטווח ארוך: לפי קו הבחינה בלבד"})
+    elif stp_all:
+        nb = rep.get("purchases_n", 0)
+        out.append({"k": "סטופ", "lv": 1, "t": f"{len(stp_all)} המלצות שלא קנית מתחת לסטופ (מעקב בלבד)" + ("" if nb else " · כדי לקבל התראות רק על מה שקנית – לעדכן את יומן הקניות")})
+    ern = sorted({f"{p['t']} ({max(0, p['earn'])} ימים)" for p in pf if p.get("earn") is not None and p["earn"] <= 7})
+    if ern:
+        out.append({"k": "דוחות השבוע", "lv": 1, "t": f"בתיק: {', '.join(ern)} – לא להוסיף לפני הדוח; לצפות לתנודה"})
+    dp = rep.get("deposit_plan") or []
+    if dp:
+        segs = []
+        for d in dp:
+            if d["items"]:
+                segs.append(f"{d['acct'].split(' – ')[0]} ₪{d['amount_ils']:,}: " + ", ".join(f"{i['t']}" + (f" ×{i['shares']}" if i['shares'] else "") for i in d["items"]))
+            else:
+                segs.append(f"{d['acct'].split(' – ')[0]}: {d['note']}")
+        out.append({"k": "הפקדה החודש", "lv": 0, "t": " · ".join(segs)})
+    tot = {}
+    for p_ in pf:
+        if p_.get("value_ils"):
+            k_ = (p_.get("acct") or "").split(" – ")[0]
+            tot[k_] = tot.get(k_, 0) + p_["value_ils"]
+    if tot:
+        for k_c, v_c in getattr(config, "CASH_USD", {}).items():
+            lab = (config.ACCOUNTS.get(k_c, {}).get("label") or k_c).split(" – ")[0]
+            if v_c and lab in tot:
+                tot[lab] += v_c * rep.get("fx", 3.7)
+        out.append({"k": "שווי בשקלים (כולל מזומן)", "lv": 0, "t": " · ".join(f"{k}: ₪{v:,.0f}" for k, v in tot.items()) + " (לפי שער היום)"})
     tr = [r for r in rep.get("track", []) if r.get("spy") is not None]
     if tr:
         ex = sum(r["ret"] - r["spy"] for r in tr) / len(tr) * 100
@@ -614,7 +645,13 @@ def run(today=None):
                         "value": value, "weight": weight, "spec": spec, "action": action, "score": x["score"],
                         "rs": x["rs"], "stage": f["stage"], "ext150": f["ext_sma150"], "earn": x["earn"],
                         "signals": [t2 for _, t2 in sorted(sig, key=lambda z: -z[0])], "level": lvl,
-                        "notes": pz["notes"], "acct": acc["label"]})
+                        "notes": pz["notes"], "acct": acc["label"],
+                        "cost": (buy * pz["shares"]) if buy and pz["shares"] else None,
+                        "gain": (value - buy * pz["shares"]) if value and buy and pz["shares"] else None,
+                        "tax_rate": config.GOAL["tax_corp"] if acc.get("type") == "company" else config.GOAL["tax_simple"],
+                        "value_ils": value * fx if value and not t.endswith(".TA") else (value / 100 if value else None)})
+        r_ = pf_rows[-1]
+        r_["tax_est"] = max(0.0, r_["gain"]) * r_["tax_rate"] if r_.get("gain") is not None else None
 
     comp_labels = {v["label"] for v in config.ACCOUNTS.values() if v["type"] == "company"}
     pf_rows.sort(key=lambda r: 0 if r.get("acct") in comp_labels else 1)
@@ -623,7 +660,8 @@ def run(today=None):
     goal = None
     try:
         G = config.GOAL
-        val_ils = lambda typ: sum(acc_val.get(k, 0) for k, v in config.ACCOUNTS.items() if v["type"] == typ) * fx
+        cash = getattr(config, "CASH_USD", {})
+        val_ils = lambda typ: sum(acc_val.get(k, 0) + cash.get(k, 0) for k, v in config.ACCOUNTS.items() if v["type"] == typ) * fx
         cur = val_ils("company")
         net_y = G["monthly_net_ils"] * 12
         need = {"a": net_y / (1 - G["tax_simple"]) / G["withdraw_rate"],
@@ -715,6 +753,50 @@ def run(today=None):
     except Exception as e:  # noqa
         log(f"ext picks skipped: {e}")
         report["picks_ext"] = []
+    # ---- יומן קניות: התראות סטופ רק על מה שנקנה באמת ----
+    try:
+        bp = os.path.join(ROOT, "purchases.csv")
+        bought = {r["ticker"].strip().upper(): r for r in csv.DictReader(open(bp, encoding="utf-8"))} if os.path.exists(bp) else {}
+        held = set(bought) | {r["t"] for r in pf_rows}
+        report["purchases_n"] = len(bought)
+        for x in report.get("pick_track", []):
+            x["held"] = x["t"] in held
+            if x["t"] in bought:
+                b_ = bought[x["t"]]
+                x["my_entry"] = float(b_.get("price") or 0) or None
+                x["my_horizon"] = (b_.get("horizon") or "").strip()
+    except Exception as e:  # noqa
+        log(f"purchases skipped: {e}")
+    # ---- תוכנית הפקדה חודשית: לאן לשים את ההפקדה הבאה ----
+    try:
+        plans = []
+        held_t = {r["t"] for r in pf_rows}
+        tree = [p_ for p_ in report.get("picks", []) + report.get("picks_ext", [])
+                if (p_.get("horizon") or {}).get("ok") and p_["t"] not in held_t and not p_["t"].endswith(".TA")]
+        for key, acc in config.ACCOUNTS.items():
+            amt_ils = config.GOAL["monthly_contrib_ils"] if acc["type"] == "company" else config.PERSONAL_PLAN["monthly_contrib_ils"]
+            rows_a = [r for r in pf_rows if r.get("notes") == key]
+            cands = [{"t": r["t"], "why": "בתיק, באזור הוספה", "price": r["price"]} for r in rows_a
+                     if r.get("action") == "אזור הוספה" and not r.get("spec")
+                     and (r.get("weight") or 0) < acc["max_weight"] and not r["t"].endswith(".TA")]
+            cands += [{"t": p_["t"], "why": "חדשה 🌳 מהרדאר", "price": p_["price"]} for p_ in tree]
+            k_ = max(1, min(3, int(amt_ils / fx // 600)))
+            budget = amt_ils / fx / k_
+            cands = ([c_ for c_ in cands if c_["price"] and c_["price"] <= budget] or cands)[:k_]
+            if not cands:
+                plans.append({"acct": acc["label"], "amount_ils": amt_ils, "items": [], "note": "אין היום מועמדת מתאימה – להשאיר במזומן או להוסיף ל-SPY"})
+                continue
+            per_usd = amt_ils / fx / len(cands)
+            items = []
+            for c_ in cands:
+                sh = int(per_usd // c_["price"]) if c_["price"] else 0
+                items.append({"t": c_["t"], "why": c_["why"], "usd": round(per_usd), "shares": sh,
+                              "note": "" if sh else "מחיר גבוה מהסכום – לצבור לחודש הבא"})
+            plans.append({"acct": acc["label"], "amount_ils": amt_ils, "items": items, "note": ""})
+        report["deposit_plan"] = plans
+    except Exception as e:  # noqa
+        log(f"deposit plan skipped: {e}")
+        report["deposit_plan"] = []
     # ---- קציר מנהלים: שורות תחתונות ----
     try:
         report["exec"] = exec_summary(report)
