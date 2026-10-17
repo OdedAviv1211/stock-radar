@@ -452,7 +452,33 @@ function renderTrack(){
    <div class="card kpi"><b class="num">${pctPlain(win)}</b><span>אחוז המלצות ברווח</span></div><div class="card kpi"><b>${pct(exAvg)}</b><span>עודף תשואה מול S&amp;P 500</span></div>
    <div class="card kpi"><b class="num">${dates.length}</b><span>ימי המלצה</span></div></div>
    <div class="card tw" style="max-height:420px"><table><thead><tr><th>תאריך</th><th>מניות (תשואה מאז)</th><th class="n">ממוצע</th><th class="n">S&amp;P 500</th></tr></thead><tbody>
-   ${dates.map(d=>{const rs=by[d].sort((a,b)=>a.rank-b.rank),m=rs.reduce((a,b)=>a+b.ret,0)/rs.length;return `<tr><td class="num">${d}</td><td style="white-space:normal">${rs.map(r=>`<span class="tk">${esc(r.t.replace('.TA',''))}</span> ${pct(r.ret,0)}`).join(' · ')}</td><td class="n">${pct(m)}</td><td class="n">${pct(rs[0].spy)}</td></tr>`}).join('')}</tbody></table></div>`;
+   ${dates.map(d=>{const rs=by[d].sort((a,b)=>a.rank-b.rank),m=rs.reduce((a,b)=>a+b.ret,0)/rs.length;return `<tr><td class="num">${d}</td><td style="white-space:normal">${rs.map(r=>`<span class="tk">${esc(r.t.replace('.TA',''))}</span> ${pct(r.ret,0)}`).join(' · ')}</td><td class="n">${pct(m)}</td><td class="n">${pct(rs[0].spy)}</td></tr>`}).join('')}</tbody></table></div>`+exitsHtml();
+}
+function exitsHtml(){
+  const X=(D.exits||[]);if(!X.length)return '';
+  return `<h3 style="margin:14px 0 6px">כלל יציאה – המלצות מ-30 הימים האחרונים</h3><p class="muted" style="margin-bottom:6px">יציאה כשהמניה נסגרת מתחת לממוצע 20 יום, או יורדת 8% מהשיא שהגיעה אליו מאז ההמלצה.</p>
+   <div class="card tw"><table><thead><tr><th>מניה</th><th>מאז</th><th class="n">מההמלצה</th><th class="n">מהשיא</th><th>מצב</th></tr></thead><tbody>
+   ${X.map(x=>`<tr><td><span class="tk">${esc(x.t)}</span>${x.in_top?' <span class="muted">(בטופ היום)</span>':''}</td><td class="num">${esc(x.since)}</td><td class="n">${pct(x.ret)}</td><td class="n">${pct(x.dd)}</td><td>${x.exit?'🚪 '+esc(x.why.join(' · ')):'✅ להחזיק'}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+
+// ---- מעקב המלצות: ציון לאורך זמן, סיבת יציאה, סטופים ----
+function pickTrackHtml(){
+  const P=D.pick_track||[]; if(!P.length) return '';
+  const chip=s=>s[1]==null?'<span class="muted">—</span>':`<span class="num" style="padding:0 4px;border-radius:5px;${s[2]?'background:var(--up-soft);color:var(--up)':'background:var(--soft);color:var(--muted)'}" title="${esc(s[0])}">${Math.round(s[1])}</span>`;
+  const nIn=P.filter(x=>x.status==='in').length, nOut=P.length-nIn, nAl=P.filter(x=>x.alert.length).length;
+  const tr=P.filter(x=>x.ret!=null&&x.spy!=null), ex=tr.length?tr.reduce((a,x)=>a+x.ret-x.spy,0)/tr.length:null;
+  return `<div class="bt">מעקב המלצות – 60 הימים האחרונים</div>
+  <div class="sub" style="margin-bottom:4px"><b>איך לקרוא:</b> המלצה = כניסה. הטופ 10 משתנה כל יום, ויציאה ממנו אינה מכירה. מוכרים רק כשנשבר קו הגנה: <b style="color:var(--down)">סטופ מסחר</b> (למי שנכנס לטווח קצר) או <b>קו בחינה לטווח ארוך</b> (למניה עם 🌳 – מחזיקים כל עוד היא מעליו).</div>
+  <div class="sub">${P.length} מניות · ${nIn} בטופ היום · ${nOut} יצאו · ${nAl} עם התראה · ממוצע מול S&amp;P 500: ${pct(ex)}. ירוק = היום שבו הייתה בטופ 10.</div>`+
+  P.map(x=>`<details class="bi"><summary><b class="tk">${esc(x.t)}</b><span class="why">${x.status==='in'?'🟢 בטופ':'⚪ יצאה'} · ${pct(x.ret)} מאז ${esc(x.first.slice(5))}${x.alert.length?` · <b style="color:var(--down)">⚠ ${esc(x.alert[0])}</b>`:''}<br><span style="font-size:12.5px">${x.scores.map(chip).join(' ')}</span></span><span class="ex"></span></summary>
+   <div class="bd"><div><b>${x.status==='in'?'למה בפנים':'למה יצאה'}:</b> ${esc(x.reason)}</div>
+   ${x.horizon?`<div><b>אופק:</b> ${x.horizon.ok?'🌳':'⚡'} ${esc(x.horizon.label)} <span class="sub">– ${esc(x.horizon.why)}</span></div>`:''}
+   <div class="sub" style="margin-top:4px">${x.status==='out'?(x.alert.length?'יצאה מהטופ <b>וגם</b> שברה קו הגנה – זה סימן לבחון מכירה.':'יציאה מהטופ היא <b>לא</b> הוראת מכירה: מניות אחרות פשוט קיבלו ציון גבוה יותר. מוכרים רק כששובר קו הגנה.'):''}</div>
+   ${x.moved.length?`<div class="sub">מה זז בציון מאז הכניסה: ${esc(x.moved.join(' · '))}</div>`:''}
+   <div class="sub num" style="margin-top:6px">כניסה ${x.entry.toFixed(2)} · שיא ${x.peak?x.peak.toFixed(2):'—'} · עכשיו ${x.now?x.now.toFixed(2):'—'} (${pct(x.dd)} מהשיא) · מול S&amp;P 500: ${pct(x.ret!=null&&x.spy!=null?x.ret-x.spy:null)}</div>
+   <div style="margin-top:6px"><b style="color:var(--down)">סטופ מסחר: ${x.stop_trade.toFixed(2)}</b> <span class="sub">(8% מתחת לשיא מאז ההמלצה)</span> · ממוצע 20: ${x.sma20?x.sma20.toFixed(2):'—'}</div>
+   <div><b>קו בחינה לטווח ארוך: ${x.line_long?x.line_long.toFixed(2):'—'}</b> <span class="sub">(3% מתחת לממוצע 200 – מתחתיו בוחנים מחדש את ההחזקה)</span></div></div></details>`).join('');
 }
 
 // ---- method ----
@@ -606,11 +632,12 @@ function renderBrief(){
   if(W.length){ h+=`<div class="bt">רשימת המעקב – אירועים היום</div>`+W.map(w=>`<details class="bi"><summary><b class="tk">${esc(w.t)}</b><span class="why"><b>${esc(w.action)}</b> · ${esc(w.events[0].text)}</span><span class="ex">${toneChip(((D.news||{})[w.t]||{}).verdict)}</span></summary>
      <div class="bd"><div class="sub">${esc(w.sector)} · מחיר ${w.price.toFixed(2)} · ממוצע 20: ${pct(w.d20,1)} · מיכה ${w.micha}/6${w.stop?` · כניסה ${w.entry.toFixed(2)} / סטופ ${w.stop.toFixed(2)}`:''}</div>
      <ul class="rs">${w.events.map(e=>`<li>${esc(e.text)}</li>`).join('')}</ul><div style="margin-top:8px"><b>מה נאמר</b></div>${newsHtml(w.t)}</div></details>`).join(''); }
-  h+=`<div class="bt">10 המניות של היום</div>`+D.picks.map(p=>`<details class="bi"><summary><b class="tk">${p.rank}. ${esc(p.t.replace('.TA',''))}</b><span class="why">${esc(p.theme)} · ציון <b class="num">${Math.round(p.score)}</b> · RS ${p.rs}${p.earn!=null&&p.earn<=10?' · ⚠ דוח בעוד '+Math.max(0,p.earn)+' ימים':''}</span><span class="ex">${toneChip(((D.news||{})[p.t]||{}).verdict)}</span></summary>
+  h+=`<div class="bt">10 המניות של היום</div>`+D.picks.map(p=>`<details class="bi"><summary><b class="tk">${p.rank}. ${esc(p.t.replace('.TA',''))}</b><span class="why">${p.horizon?`<b style="color:${p.horizon.ok?'var(--up)':'var(--muted)'}">${p.horizon.ok?'🌳':'⚡'} ${esc(p.horizon.label)}</b> · `:''}${esc(p.theme)} · ציון <b class="num">${Math.round(p.score)}</b> · RS ${p.rs}${p.plan?` · <b style="color:var(--down)">סטופ ${p.plan.stop.toFixed(2)}</b>`:''}${p.earn!=null&&p.earn<=10?' · ⚠ דוח בעוד '+Math.max(0,p.earn)+' ימים':''}</span><span class="ex">${toneChip(((D.news||{})[p.t]||{}).verdict)}</span></summary>
      <div class="bd"><div class="sub">${esc(p.name||'')}</div><ul class="rs good">${(p.good||[]).slice(0,5).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>${(p.warn||[]).length?`<ul class="rs warn">${p.warn.slice(0,3).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
      ${p.plan?`<div class="sub num">כניסה ${p.plan.entry.toFixed(2)} · סטופ ${p.plan.stop.toFixed(2)} · ${esc(p.plan.target_src)} ${p.plan.target1.toFixed(2)}</div>`:''}
      <div style="margin-top:8px"><b>מה נאמר</b></div>${newsHtml(p.t)}</div></details>`).join('');
   if(D.israel&&D.israel.length) h+=`<div class="sub" style="margin-top:8px">🇮🇱 ת"א: ${D.israel.map(p=>esc(p.t.replace('.TA',''))).join(' · ')}</div>`;
+  h+=pickTrackHtml();
   h+=`</details>`;
   // ===== 3. דוח מחקר =====
   h+=`<details class="blk" open><summary><span class="bh">3 · דוח מחקר – מה נאמר</span><span class="ex"></span></summary>`;
