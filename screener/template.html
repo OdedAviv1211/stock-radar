@@ -471,7 +471,7 @@ function pickTrackHtml(){
   return `<div class="bt">מעקב המלצות – 60 הימים האחרונים</div>
   <div class="sub" style="margin-bottom:4px"><b>איך לקרוא:</b> המלצה = כניסה. הטופ 10 משתנה כל יום, ויציאה ממנו אינה מכירה. מוכרים רק כשנשבר קו הגנה: <b style="color:var(--down)">סטופ מסחר</b> (למי שנכנס לטווח קצר) או <b>קו בחינה לטווח ארוך</b> (למניה עם 🌳 – מחזיקים כל עוד היא מעליו). 🌱 = מגמה ארוכה בבנייה, עוד לא מאושרת.</div>
   <div class="sub">${P.length} מניות · ${nIn} בטופ היום · ${nOut} יצאו · ${nAl} עם התראה · ממוצע מול S&amp;P 500: ${pct(ex)}. ירוק = היום שבו הייתה בטופ 10.</div>`+
-  P.map(x=>`<details class="bi"><summary><b class="tk">${esc(x.t)}</b><span class="why">${x.status==='in'?'🟢 בטופ':'⚪ יצאה'} · ${pct(x.ret)} מאז ${esc(x.first.slice(5))}${x.alert.length?` · <b style="color:var(--down)">⚠ ${esc(x.alert[0])}</b>`:''}<br><span style="font-size:12.5px">${x.scores.map(chip).join(' ')}</span></span><span class="ex"></span></summary>
+  P.map(x=>`<details class="bi"><summary><b class="tk">${esc(x.t)}</b><span class="why">${x.held?'💼 ':''}${x.status==='in'?'🟢 בטופ':'⚪ יצאה'} · ${pct(x.ret)} מאז ${esc(x.first.slice(5))}${x.alert.length?` · <b style="color:var(--down)">⚠ ${esc(x.alert[0])}</b>`:''}<br><span style="font-size:12.5px">${x.scores.map(chip).join(' ')}</span></span><span class="ex"></span></summary>
    <div class="bd"><div><b>${x.status==='in'?'למה בפנים':'למה יצאה'}:</b> ${esc(x.reason)}</div>
    ${x.horizon?`<div><b>אופק:</b> ${x.horizon.ok?'🌳':(x.horizon.label==='מגמה ארוכה בבנייה'?'🌱':'⚡')} ${esc(x.horizon.label)} <span class="sub">– ${esc(x.horizon.why)}</span></div>`:''}
    <div class="sub" style="margin-top:4px">${x.status==='out'?(x.alert.length?'יצאה מהטופ <b>וגם</b> שברה קו הגנה – זה סימן לבחון מכירה.':'יציאה מהטופ היא <b>לא</b> הוראת מכירה: מניות אחרות פשוט קיבלו ציון גבוה יותר. מוכרים רק כששובר קו הגנה.'):''}</div>
@@ -623,12 +623,15 @@ function renderBrief(){
     h+=rows.map(p=>{const sig=(p.signals||[p.status||''])[0];
       return `<details class="bi"><summary><b class="tk">${esc(p.t.replace('.TA',''))}${p.weight!=null?` <span class="sub num">${(p.weight*100).toFixed(0)}%</span>`:''}</b><span class="why"><span class="lvl${p.level}">${esc(p.action||LVL[p.level])}</span> · ${esc(sig)}</span><span class="ex">${toneChip(((D.news||{})[p.t]||{}).verdict)}</span></summary>
       <div class="bd">${p.price!=null?`<div class="sub num">מחיר ${px(p.price,p.cur)} · יום ${pct(p.r1d)} · ${p.ret==null?'':'מאז קנייה '+pct(p.ret)+' · '}שווי ${px(p.value,p.cur)} · שלב ${p.stage} · RS ${p.rs}${p.spec?' · ספקולטיבית':''}</div>
-      <div class="sub num"><b>קו בחינה</b> ${px(p.review,p.cur)} (3% מתחת לממוצע 200 – סגירה מתחתיו = לבחון, לא מכירה אוטומטית)</div>`:''}
+      <div class="sub num"><b>קו בחינה</b> ${px(p.review,p.cur)} (3% מתחת לממוצע 200 – סגירה מתחתיו = לבחון, לא מכירה אוטומטית)</div>
+      ${p.value_ils?`<div class="sub num">בשקלים: ₪${Math.round(p.value_ils).toLocaleString()}${p.gain!=null?` · רווח צבור ${px(p.gain,p.cur)}${p.tax_est?` · מס משוער במכירה ${px(p.tax_est,p.cur)} (${Math.round(p.tax_rate*100)}%) · נטו ${px(p.gain-p.tax_est,p.cur)}`:' · בהפסד – מכירה מקזזת מס'}`:''}</div>`:''}`:''}
       <ul class="rs ${p.level>=2?'warn':'good'}">${(p.signals||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
       <div style="margin-top:8px"><b>מה נאמר</b></div>${newsHtml(p.t)}</div></details>`}).join('');
     h+=`</details>`;
   });
   h+=`</details>`;
+  const DP=D.deposit_plan||[];
+  if(DP.length){h+=`<details class="blk sub2" open><summary><span class="bt" style="margin:0">תוכנית הפקדה החודש</span><span class="ex"></span></summary>`+DP.map(d=>`<div style="padding:4px 0"><b>${esc(d.acct.split(' – ')[0])} · ₪${d.amount_ils.toLocaleString()}</b>${d.items.length?'<ul class="rs">'+d.items.map(i=>`<li><b class="tk">${esc(i.t)}</b> – ${esc(i.why)} · ~$${i.usd.toLocaleString()}${i.shares?` · ${i.shares} מניות`:''}${i.note?` <span class="sub">(${esc(i.note)})</span>`:''}</li>`).join('')+'</ul>':`<div class="sub">${esc(d.note)}</div>`}</div>`).join('')+`<div class="sub">חלוקה שווה בין עד 3 מועמדות, בלי לחרוג מתקרת המשקל בתיק. לא ייעוץ – החלטה שלך.</div></details>`;}
   // ===== 2. ניתוח יומי =====
   const reg=D.regime.map(r=>`${esc(r.name.split(' (')[0])}: <b>${esc(r.status)}</b>`).join(' · ');
   h+=`<details class="blk" open><summary><span class="bh">2 · ניתוח יומי</span><span class="ex"></span></summary>`;
