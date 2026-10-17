@@ -6,6 +6,7 @@ import os
 from datetime import datetime
 
 import numpy as np
+import pandas as pd
 
 from . import news, watch, analogs, config, data, micha, patterns, scoring, themes
 from .indicators import compute
@@ -76,6 +77,22 @@ def watch_rows(wl, hist):
             ev = None
         out.append({"t": r["ticker"], "sector": r["sector"], "note": r.get("note", ""), **(ev or {"error": "אין נתונים"})})
     return out
+
+
+def long_term(f, fund_score=None):
+    """אופק החזקה: האם יש גם מגמה ארוכת טווח (ממוצע 150 מעל 200, שניהם עולים, מחיר מעל 200)."""
+    if not f:
+        return {"ok": False, "label": "אין נתונים", "why": ""}
+    up = f["sma150"] > f["sma200"] and f["sma150_slope"] > 0 and f.get("sma200_slope", 0) > 0 and f["price"] > f["sma200"]
+    strong_fund = fund_score is not None and fund_score >= 60
+    if up and strong_fund:
+        return {"ok": True, "label": "מתאימה גם להחזקה ארוכה",
+                "why": "ממוצע 150 מעל ממוצע 200 ושניהם עולים, והיסודות חזקים"}
+    if up:
+        return {"ok": True, "label": "מגמה ארוכה חיובית",
+                "why": "ממוצע 150 מעל ממוצע 200 ושניהם עולים; היסודות בינוניים – לבדוק לפני החזקה ארוכה"}
+    return {"ok": False, "label": "מסחר לטווח קצר בלבד",
+            "why": "אין עדיין מגמה ארוכה מאושרת (ממוצע 150 לא מעל 200, או שהם לא עולים)"}
 
 
 def run(today=None):
@@ -212,14 +229,18 @@ def run(today=None):
     ranked = sorted([x for x in rows.values() if x["t"] in cand_set and x["eligible"]], key=lambda x: -x["score"])
 
     # ---- בחירת 10 עם פיזור לפי קטגוריה ----
-    picks, per_theme = [], {}
+    picks, per_theme, per_ind = [], {}, {}
     for x in ranked:
         if meta[x["t"]]["market"] != "US" and len([p for p in picks if meta[p["t"]]["market"] != "US"]) >= 2:
             continue
         if per_theme.get(x["theme"], 0) >= config.MAX_PER_THEME:
             continue
+        ind_k = meta[x["t"]].get("industry") or x.get("sub") or x["theme"]
+        if per_ind.get(ind_k, 0) >= getattr(config, "MAX_PER_INDUSTRY", 99):
+            continue
         picks.append(x)
         per_theme[x["theme"]] = per_theme.get(x["theme"], 0) + 1
+        per_ind[ind_k] = per_ind.get(ind_k, 0) + 1
         if len(picks) == config.TOP_N:
             break
     israel = [x for x in ranked if meta[x["t"]]["market"] == "TASE"][:config.ISRAEL_TOP_N]
@@ -262,6 +283,7 @@ def run(today=None):
                          "gm": i.get("grossMargins"), "roe": i.get("returnOnEquity"), "fpe": i.get("forwardPE"),
                          "peg": i.get("trailingPegRatio"), "inst": i.get("heldPercentInstitutions"),
                          "target": i.get("targetMeanPrice"), "rec": i.get("recommendationMean")}
+        o["horizon"] = long_term(f, x["parts"].get("fund") if x.get("info") else None)
         if series:
             s = compute(hist[t], with_series=True)["series"]
             o["series"] = s
@@ -333,6 +355,123 @@ def run(today=None):
         spy_ret = float(spy_c.iloc[-1] / sp0.iloc[-1] - 1) if len(sp0) else None
         track.append({"date": p["date"], "t": t, "rank": int(p["rank"]), "entry": entry,
                       "now": feats[t]["price"], "ret": feats[t]["price"] / entry - 1, "spy": spy_ret})
+    # ---- כלל יציאה: המלצות מ-30 הימים האחרונים ----
+    exits = []
+    try:
+        cut = (pd.Timestamp(asof) - pd.Timedelta(days=config.EXIT_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
+        first = {}
+        for p_ in past:
+            if p_["date"] >= cut:
+                first.setdefault(p_["ticker"], p_)
+        cur = {x["t"] for x in picks}
+        for t, p_ in first.items():
+            df = hist.get(t)
+            if df is None or not len(df):
+                continue
+            c = df["Close"]
+            since = c.loc[p_["date"]:]
+            if not len(since):
+                continue
+            peak, now = float(since.max()), float(c.iloc[-1])
+            sma20 = float(c.iloc[-20:].mean())
+            dd = now / peak - 1
+            why = []
+            if dd <= -config.EXIT_DD:
+                why.append(f"ירדה {abs(dd)*100:.0f}% מהשיא מאז ההמלצה")
+            if now < sma20:
+                why.append("נסגרה מתחת לממוצע 20 יום")
+            exits.append({"t": t, "since": p_["date"], "entry": float(p_["price"]), "peak": peak, "now": now,
+                          "ret": now / float(p_["price"]) - 1, "dd": dd, "exit": bool(why), "why": why,
+                          "in_top": t in cur})
+        exits.sort(key=lambda e: (not e["exit"], e["dd"]))
+    except Exception as e:  # noqa
+        log(f"exits skipped: {e}")
+    # ---- יומן מעקב המלצות: לכל מניה שהומלצה ב-60 הימים האחרונים – ציון, דירוג, סיבת יציאה וסטופים ----
+    pick_track = []
+    try:
+        PART_HE = {"trend": "מגמה", "rs": "חוזק יחסי", "analog": "דמיון למנצחות", "fund": "יסודות",
+                   "group": "חוזק הענף", "accum": "איסוף מוסדי", "setup": "נקודת כניסה"}
+        lpath = os.path.join(ROOT, "data", "pick_log.csv")
+        log_rows = list(csv.DictReader(open(lpath, encoding="utf-8"))) if os.path.exists(lpath) else []
+        log_rows = [r for r in log_rows if r["date"] != asof]
+        cut60 = (pd.Timestamp(asof) - pd.Timedelta(days=60)).strftime("%Y-%m-%d")
+        tracked = {}
+        for p_ in past:
+            if p_["date"] >= cut60:
+                tracked.setdefault(p_["ticker"], p_)
+        top_rank = {x["t"]: i for i, x in enumerate(picks, 1)}
+        for x in picks:
+            tracked.setdefault(x["t"], {"date": asof, "price": x["f"]["price"]})
+        cutoff = picks[-1]["score"] if picks else None
+        overall = {x["t"]: i for i, x in enumerate(ranked, 1)}
+        for t, p_ in tracked.items():
+            r_ = rows.get(t)
+            f = feats.get(t)
+            if not r_ or not f:
+                reason = "אין נתונים היום"
+            elif t in top_rank:
+                reason = "בטופ 10"
+            elif not r_["eligible"]:
+                why = []
+                if f["stage"] != 2:
+                    why.append("יצאה משלב 2 – המגמה העולה נשברה")
+                if f["sma150_slope"] <= 0:
+                    why.append("ממוצע 150 הפסיק לעלות")
+                if f["price"] < config.US_MIN_PRICE and not t.endswith(".TA"):
+                    why.append("מחיר נמוך מהסף")
+                reason = " · ".join(why) or "לא עומדת בתנאי הסף (נזילות)"
+            elif t not in cand_set:
+                reason = "לא עברה את סינון היסודות"
+            elif cutoff is not None and r_["score"] >= cutoff:
+                reason = "ציון מספיק, אבל נחסמה בתקרת הענף/הקטגוריה (פיזור)"
+            else:
+                reason = f"הציון ירד מתחת לסף הכניסה ({cutoff:.0f})" if cutoff is not None else "מחוץ לטופ"
+            c = hist[t]["Close"] if t in hist else None
+            since = c.loc[p_["date"]:] if c is not None else None
+            peak = float(since.max()) if since is not None and len(since) else None
+            entry = float(p_["price"])
+            stop_trade = max(entry * (1 - config.EXIT_DD), peak * (1 - config.EXIT_DD)) if peak else entry * (1 - config.EXIT_DD)
+            line_long = f["sma200"] * (1 - config.REVIEW_BELOW_SMA200) if f else None
+            sp0 = spy["Close"].loc[:p_["date"]]
+            spy_ret = float(spy["Close"].iloc[-1] / sp0.iloc[-1] - 1) if len(sp0) else None
+            log_rows.append({"date": asof, "ticker": t, "in_top": int(t in top_rank), "rank": top_rank.get(t, ""),
+                             "overall": overall.get(t, ""), "score": round(r_["score"], 1) if r_ else "",
+                             "cutoff": round(cutoff, 1) if cutoff is not None else "",
+                             "price": round(f["price"], 4) if f else "", "reason": reason,
+                             "parts": json.dumps({k: round(v, 1) for k, v in r_["parts"].items()}) if r_ else ""})
+            hist_t = [r for r in log_rows if r["ticker"] == t]
+            seen_d = {r["date"] for r in hist_t}
+            hist_t += [{"date": q["date"], "score": q["score"], "in_top": 1, "parts": ""}
+                       for q in past if q["ticker"] == t and q["date"] not in seen_d and q["date"] >= cut60]
+            first_parts = next((json.loads(r["parts"]) for r in hist_t if r.get("parts")), None)
+            moved = []
+            if first_parts and r_:
+                d_ = {k: r_["parts"][k] - first_parts.get(k, r_["parts"][k]) for k in r_["parts"]}
+                moved = [f"{PART_HE.get(k, k)} {v:+.0f}" for k, v in sorted(d_.items(), key=lambda kv: kv[1])[:2] if v < -2]
+                moved += [f"{PART_HE.get(k, k)} {v:+.0f}" for k, v in sorted(d_.items(), key=lambda kv: -kv[1])[:1] if v > 2]
+            now = f["price"] if f else None
+            status = "in" if t in top_rank else "out"
+            alert = []
+            if now and now <= stop_trade:
+                alert.append("מתחת לסטופ המסחר")
+            if f and now < f["sma20"]:
+                alert.append("מתחת לממוצע 20")
+            if line_long and now and now < line_long:
+                alert.append("מתחת לקו הבחינה לטווח ארוך")
+            pick_track.append({"t": t, "first": p_["date"], "horizon": long_term(f, r_["parts"].get("fund") if r_ and r_.get("info") else None), "entry": entry, "now": now, "peak": peak,
+                               "ret": (now / entry - 1) if now else None, "spy": spy_ret,
+                               "dd": (now / peak - 1) if now and peak else None, "status": status, "reason": reason,
+                               "stop_trade": stop_trade, "sma20": f["sma20"] if f else None, "line_long": line_long,
+                               "moved": moved, "alert": alert,
+                               "scores": [[r["date"], float(r["score"]) if r["score"] not in ("", None) else None, int(r["in_top"])]
+                                          for r in sorted(hist_t, key=lambda r: r["date"])][-20:]})
+        pick_track.sort(key=lambda x: (x["status"] != "in", x["first"]))
+        with open(lpath, "w", newline="", encoding="utf-8") as fh:
+            w = csv.DictWriter(fh, fieldnames=["date", "ticker", "in_top", "rank", "overall", "score", "cutoff", "price", "reason", "parts"])
+            w.writeheader()
+            w.writerows([r for r in log_rows if r["date"] >= cut60])
+    except Exception as e:  # noqa
+        log(f"pick tracking skipped: {e}")
     for i, x in enumerate(picks, 1):
         past.append({"date": asof, "ticker": x["t"], "rank": i, "price": round(x["f"]["price"], 4),
                      "score": round(x["score"], 1)})
@@ -496,7 +635,7 @@ def run(today=None):
         "picks": [card(x, i + 1, True) for i, x in enumerate(picks)],
         "israel": [card(x, i + 1, True) for i, x in enumerate(israel)],
         "by_cap": {k: [card(x) for x in v] for k, v in by_cap.items()},
-        "table": table, "heat": heat, "themes": theme_stats, "track": track,
+        "table": table, "heat": heat, "themes": theme_stats, "track": track, "exits": exits, "pick_track": pick_track,
         "analogs": [{k: a[k] for k in ("ticker", "date", "label", "fwd6", "fwd12")} for a in lib],
     }
     report["research_url"] = getattr(config, "RESEARCH_URL", "")
@@ -542,6 +681,10 @@ def run(today=None):
             "regime": [f"{r['name']}: {r['status']}" for r in report["regime"]],
             "picks": [[p["t"], round(p["score"]), p["theme"]] for p in report["picks"]],
             "israel": [[p["t"], round(p["score"])] for p in report["israel"]],
+            "exits": [[e["t"], round(e["ret"] * 100, 1), round(e["dd"] * 100, 1), e["why"]] for e in report.get("exits", []) if e["exit"]],
+            "track": (lambda tr: {"n": len(tr), "avg": round(sum(r["ret"] for r in tr) / len(tr) * 100, 2),
+                                  "ex_spy": round(sum(r["ret"] - r["spy"] for r in tr if r["spy"] is not None) / max(1, sum(r["spy"] is not None for r in tr)) * 100, 2),
+                                  "beat": round(sum(r["spy"] is not None and r["ret"] > r["spy"] for r in tr) / len(tr) * 100)} if tr else None)(report.get("track", [])),
             "portfolio": [[r["t"], r.get("notes", ""), r.get("level"), (r.get("signals") or [r.get("status")])[0],
                            None if r.get("ret") is None else round(r["ret"] * 100, 1)] for r in pf_rows],
             "watch": [[w["t"], w.get("action"), [e["text"] for e in w.get("events", [])]] for w in report["watch"]],
