@@ -100,6 +100,69 @@ def long_term(f, fund_score=None, mcap=None):
     return {"ok": False, "label": "מסחר לטווח קצר בלבד", "why": "חסר: " + " · ".join(missing), "missing": missing}
 
 
+def exec_summary(rep):
+    """קציר מנהלים: 5–7 שורות תחתונות, מהחשוב לפחות חשוב. כל שורה: {"k": כותרת, "t": טקסט, "lv": 0-3}."""
+    out = []
+    g = rep.get("goal")
+    if g:
+        lv = 0 if g["status"] in ("בקצב",) or g["status"].startswith("מקדים") else 2
+        out.append({"k": "יעד ההכנסה", "lv": lv,
+                    "t": f"{g['status']} · ₪{g['current_ils']:,.0f} ({g['progress_a'] * 100:.1f}% מהיעד) · צפי ~{g['base_years'] if g['base_years'] is not None else '80+'} שנים בהפקדה של ₪{g['cfg']['monthly_contrib_ils']:,}"})
+    pf = rep.get("portfolio", [])
+    red = sorted({p["t"] for p in pf if (p.get("level") or 0) >= 3})
+    warn = sorted({p["t"] for p in pf if (p.get("level") or 0) == 2})
+    add = sorted({p["t"] for p in pf if p.get("action") == "אזור הוספה"})
+    conc = sorted({f"{p['t']} {p['weight'] * 100:.0f}% ({(p.get('acct') or '').split(' – ')[0].replace('תיק ', '')})" for p in pf
+                   if p.get("action", "").startswith("להחזיק – לא להוסיף") and p.get("weight") is not None})
+    if pf:
+        parts = []
+        if red:
+            parts.append(f"לבחון צמצום: {', '.join(red)}")
+        if conc:
+            parts.append(f"משקל יתר: {', '.join(conc)}")
+        if add:
+            parts.append(f"אזור הוספה: {', '.join(add)}")
+        if warn:
+            parts.append(f"באזהרה: {', '.join(warn)}")
+        out.append({"k": "התיקים שלי", "lv": 3 if red else 2 if (warn or conc) else 0,
+                    "t": " · ".join(parts) or "אין שינוי – להחזיק"})
+    reg = rep.get("regime", [])
+    if reg:
+        mn = min((r.get("level") or 0) for r in reg if r.get("status") != "לא זמין") if any(r.get("status") != "לא זמין" for r in reg) else 0
+        lvl = 0 if mn >= 2 else 1 if mn >= 1 else 2 if mn >= -1 else 3
+        out.append({"k": "מצב השוק", "lv": lvl, "t": " · ".join(f"{r['name'].split(' (')[0]}: {r['status']}" for r in reg)})
+    pk = rep.get("picks", [])
+    if pk:
+        tree = [p["t"] for p in pk if (p.get("horizon") or {}).get("ok")]
+        th = {}
+        for p in pk:
+            th[p["theme"]] = th.get(p["theme"], 0) + 1
+        big = max(th.items(), key=lambda kv: kv[1])
+        txt = f"מובילות: {', '.join(p['t'] for p in pk[:3])} · 🌳 לטווח ארוך: {', '.join(tree) if tree else 'אין היום'}"
+        if big[1] >= 5:
+            txt += f" · ⚠ ריכוז: {big[1]} מתוך {len(pk)} ב{big[0]} – הימור אחד, לא 10"
+        out.append({"k": "המלצות היום", "lv": 1 if big[1] >= 5 else 0, "t": txt})
+    stp = [x["t"] for x in rep.get("pick_track", []) if x.get("alert") and "מתחת לסטופ המסחר" in x["alert"]]
+    if stp:
+        out.append({"k": "סטופ", "lv": 2, "t": f"{len(stp)} המלצות קודמות מתחת לסטופ המסחר: {', '.join(stp[:8])} – מי שנכנס לטווח קצר: לצאת. 🌳 לטווח ארוך: לפי קו הבחינה בלבד"})
+    tr = [r for r in rep.get("track", []) if r.get("spy") is not None]
+    if tr:
+        ex = sum(r["ret"] - r["spy"] for r in tr) / len(tr) * 100
+        beat = sum(r["ret"] > r["spy"] for r in tr) / len(tr) * 100
+        out.append({"k": "בקרה", "lv": 0 if ex >= 0 else 1,
+                    "t": f"ההמלצות עד היום מול S&P 500: {ex:+.1f}% בממוצע · {beat:.0f}% ניצחו את המדד ({len(tr)} המלצות)"})
+    todo = []
+    if red:
+        todo.append(f"לבחון צמצום ב-{', '.join(red[:3])}")
+    if add:
+        todo.append(f"לשקול הוספה ב-{', '.join(add[:3])}")
+    if stp:
+        todo.append("לממש פוזיציות מסחר מתחת לסטופ")
+    out.insert(0, {"k": "מה לעשות היום", "lv": 3 if red else 1 if todo else 0,
+                   "t": " · ".join(todo) if todo else "אין פעולה נדרשת – להחזיק לפי התוכנית"})
+    return out
+
+
 def run(today=None):
     t0 = datetime.utcnow()
     now_ts = datetime.utcnow().timestamp()
@@ -644,6 +707,20 @@ def run(today=None):
         "analogs": [{k: a[k] for k in ("ticker", "date", "label", "fwd6", "fwd12")} for a in lib],
     }
     report["research_url"] = getattr(config, "RESEARCH_URL", "")
+    # ---- הרחבה: מקומות 11–20 לפי ציון ----
+    try:
+        top_set = {x["t"] for x in picks}
+        ext = [x for x in ranked if x["t"] not in top_set and meta[x["t"]]["market"] == "US"][:getattr(config, "TOP_N_EXT", 20) - len(picks)]
+        report["picks_ext"] = [card(x, len(picks) + i + 1) for i, x in enumerate(ext)]
+    except Exception as e:  # noqa
+        log(f"ext picks skipped: {e}")
+        report["picks_ext"] = []
+    # ---- קציר מנהלים: שורות תחתונות ----
+    try:
+        report["exec"] = exec_summary(report)
+    except Exception as e:  # noqa
+        log(f"exec summary skipped: {e}")
+        report["exec"] = []
     # ---- מה נאמר: דיווחים רשמיים + תקשורת מובילה, מול מצב הגרף ----
     try:
         nt = [r["t"] for r in pf_rows] + [p["t"] for p in report["picks"]] + [w["t"] for w in report["watch"]]
@@ -686,6 +763,7 @@ def run(today=None):
             "regime": [f"{r['name']}: {r['status']}" for r in report["regime"]],
             "picks": [[p["t"], round(p["score"]), p["theme"]] for p in report["picks"]],
             "israel": [[p["t"], round(p["score"])] for p in report["israel"]],
+            "exec": [f"{x['k']}: {x['t']}" for x in report.get("exec", [])],
             "exits": [[e["t"], round(e["ret"] * 100, 1), round(e["dd"] * 100, 1), e["why"]] for e in report.get("exits", []) if e["exit"]],
             "track": (lambda tr: {"n": len(tr), "avg": round(sum(r["ret"] for r in tr) / len(tr) * 100, 2),
                                   "ex_spy": round(sum(r["ret"] - r["spy"] for r in tr if r["spy"] is not None) / max(1, sum(r["spy"] is not None for r in tr)) * 100, 2),
