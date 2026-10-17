@@ -61,12 +61,32 @@ def build(rep, url):
         lines.append("<b>⚡ רשימת המעקב</b>")
         for w in ev[:6]:
             lines.append(f"• <b>{e(w['t'])}</b> – {e(w['events'][0]['text'])} ➜ {e(w.get('action', ''))}")
-    lines.append("<b>🔟 המניות של היום</b>")
+    lines.append("<b>🔟 המניות של היום</b> (🌳 מתאימה גם לטווח ארוך · ⚡ מסחר קצר בלבד)")
     for p in rep["picks"]:
         ex = f" · ⚠️ דוח בעוד {max(0, p['earn'])} ימים" if p.get("earn") is not None and p["earn"] <= 10 else ""
-        lines.append(f"{p['rank']}. <b>{e(p['t'].replace('.TA', ''))}</b> · {e(p['theme'])} · {round(p['score'])}{ex}{tone(p['t'])}")
+        hz = "🌳" if (p.get("horizon") or {}).get("ok") else "⚡"
+        st = f" · סטופ {p['plan']['stop']:.2f}" if p.get("plan") else ""
+        lines.append(f"{p['rank']}. {hz} <b>{e(p['t'].replace('.TA', ''))}</b> · {e(p['theme'])} · {round(p['score'])}{st}{ex}{tone(p['t'])}")
     if rep.get("israel"):
         lines.append("🇮🇱 " + " · ".join(e(p["t"].replace(".TA", "")) for p in rep["israel"]))
+    xs = [x for x in rep.get("exits", []) if x.get("exit")]
+    if xs:
+        lines.append("<b>🚪 כלל יציאה (המלצות קודמות)</b>")
+        for x in xs[:6]:
+            lines.append(f"• <b>{e(x['t'])}</b> {x['ret']*100:+.1f}% מההמלצה ({e(x['since'][5:])}) – {e(' · '.join(x['why']))}")
+    out_today = [x for x in rep.get("pick_track", []) if x["status"] == "out" and len(x["scores"]) >= 2 and x["scores"][-2][2]]
+    if out_today:
+        lines.append("<b>↩️ יצאו היום מהטופ</b>")
+        for x in out_today[:5]:
+            lines.append(f"• <b>{e(x['t'])}</b> – {e(x['reason'])}")
+    stp = [x for x in rep.get("pick_track", []) if x.get("alert")]
+    if stp:
+        lines.append("⛔ התראות סטופ: " + " · ".join(f"<b>{e(x['t'])}</b> ({e(x['alert'][0])})" for x in stp[:6]))
+    tr = [r for r in rep.get("track", []) if r.get("spy") is not None]
+    if tr:
+        ex = sum(r["ret"] - r["spy"] for r in tr) / len(tr) * 100
+        beat = sum(r["ret"] > r["spy"] for r in tr) / len(tr) * 100
+        lines.append(f"📏 מעקב: {len(tr)} המלצות · ממוצע מול S&P 500: {ex:+.1f}% · ניצחו את המדד: {beat:.0f}%")
 
     # ===== 3. דוח מחקר =====
     lines += ["", "<b>━━ 3 · דוח מחקר ━━</b>"]
