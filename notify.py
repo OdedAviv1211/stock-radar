@@ -26,6 +26,10 @@ def build(rep, url):
         age_h = 0
     if age_h > 30:
         lines.append(f"⚠️ הדוח לא התעדכן מאז {e(gen)} – כנראה שהריצה הלילית נכשלה (לבדוק בלשונית Actions).")
+    ex_ = rep.get("exec") or []
+    if ex_:
+        dot = {3: "🔴", 2: "🟠", 1: "🔵", 0: "🟢"}
+        lines += ["", "<b>━━ קציר מנהלים ━━</b>"] + [f"{dot.get(x['lv'], '•')} <b>{e(x['k'])}:</b> {e(x['t'])}" for x in ex_]
     news = rep.get("news", {})
     tone = lambda t: {"חיובי": " 🟢שיח", "שלילי": " 🔴שיח"}.get((news.get(t, {}).get("verdict") or {}).get("tone"), "")
 
