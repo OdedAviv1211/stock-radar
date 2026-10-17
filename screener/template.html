@@ -590,6 +590,11 @@ function renderBrief(){
   const ils=v=>'₪'+Math.round(v).toLocaleString();
   const yr=v=>v==null?'80+':String(v);
   let h='';
+  // ===== קציר מנהלים =====
+  const EX=D.exec||[];
+  if(EX.length){const col=l=>l>=3?'var(--down)':l===2?'#b26a00':l===1?'var(--accent)':'var(--up)';
+    h+=`<div class="card" style="border:2px solid var(--accent);padding:12px 14px;margin-bottom:12px"><div style="font-weight:800;font-size:17px;margin-bottom:6px">קציר מנהלים – השורות התחתונות</div>`+
+    EX.map(x=>`<div style="display:flex;gap:8px;padding:5px 0;border-top:1px solid var(--line)"><span style="flex:0 0 8px;border-radius:4px;background:${col(x.lv)}"></span><div><b>${esc(x.k)}:</b> ${esc(x.t)}</div></div>`).join('')+`</div>`;}
   // ===== 1. התיקים שלי =====
   h+=`<details class="blk" open><summary><span class="bh">1 · התיקים שלי</span><span class="ex"></span></summary>`;
   const G=D.goal;
@@ -637,6 +642,7 @@ function renderBrief(){
      ${p.plan?`<div class="sub num">כניסה ${p.plan.entry.toFixed(2)} · סטופ ${p.plan.stop.toFixed(2)} · ${esc(p.plan.target_src)} ${p.plan.target1.toFixed(2)}</div>`:''}
      <div style="margin-top:8px"><b>מה נאמר</b></div>${newsHtml(p.t)}</div></details>`).join('');
   if(D.israel&&D.israel.length) h+=`<div class="sub" style="margin-top:8px">🇮🇱 ת"א: ${D.israel.map(p=>esc(p.t.replace('.TA',''))).join(' · ')}</div>`;
+  if((D.picks_ext||[]).length) h+=`<details class="bi"><summary><b>הרחבה: מקומות ${D.picks_ext[0].rank}–${D.picks_ext[D.picks_ext.length-1].rank}</b><span class="why">מניות נוספות עם ציון גבוה, לפי הסדר</span><span class="ex"></span></summary><div class="bd">${D.picks_ext.map(p=>`<div style="padding:3px 0"><b class="tk">${p.rank}. ${esc(p.t)}</b> · ${p.horizon?(p.horizon.ok?'🌳':(p.horizon.label==='מגמה ארוכה בבנייה'?'🌱':'⚡')):''} ${esc(p.theme)} · ציון <b class="num">${Math.round(p.score)}</b>${p.plan?` · <b style="color:var(--down)">סטופ ${p.plan.stop.toFixed(2)}</b>`:''}</div>`).join('')}</div></details>`;
   h+=pickTrackHtml();
   h+=`</details>`;
   // ===== 3. דוח מחקר =====
