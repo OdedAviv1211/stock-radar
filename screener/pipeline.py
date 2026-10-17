@@ -79,20 +79,25 @@ def watch_rows(wl, hist):
     return out
 
 
-def long_term(f, fund_score=None):
-    """אופק החזקה: האם יש גם מגמה ארוכת טווח (ממוצע 150 מעל 200, שניהם עולים, מחיר מעל 200)."""
+def long_term(f, fund_score=None, mcap=None):
+    """אופק החזקה. 🌳 רק כשכל התנאים לטווח ארוך מתקיימים; אחרת מסומן כמסחר לטווח קצר ומפורט מה חסר."""
     if not f:
-        return {"ok": False, "label": "אין נתונים", "why": ""}
-    up = f["sma150"] > f["sma200"] and f["sma150_slope"] > 0 and f.get("sma200_slope", 0) > 0 and f["price"] > f["sma200"]
-    strong_fund = fund_score is not None and fund_score >= 60
-    if up and strong_fund:
-        return {"ok": True, "label": "מתאימה גם להחזקה ארוכה",
-                "why": "ממוצע 150 מעל ממוצע 200 ושניהם עולים, והיסודות חזקים"}
-    if up:
-        return {"ok": True, "label": "מגמה ארוכה חיובית",
-                "why": "ממוצע 150 מעל ממוצע 200 ושניהם עולים; היסודות בינוניים – לבדוק לפני החזקה ארוכה"}
-    return {"ok": False, "label": "מסחר לטווח קצר בלבד",
-            "why": "אין עדיין מגמה ארוכה מאושרת (ממוצע 150 לא מעל 200, או שהם לא עולים)"}
+        return {"ok": False, "label": "אין נתונים", "why": "", "missing": []}
+    trend = f["sma150"] > f["sma200"] and f["sma150_slope"] > 0 and f.get("sma200_slope", 0) > 0 and f["price"] > f["sma200"]
+    s3 = f.get("sma200_slope3m")
+    checks = [
+        (trend, "ממוצע 150 מעל ממוצע 200 ושניהם עולים"),
+        (s3 is not None and s3 == s3 and s3 > 0.02, "ממוצע 200 עולה כבר 3 חודשים"),
+        ((f.get("r252") or 0) > 0 and (f.get("ex_ret_6m") or 0) > 0, "תשואה חיובית בשנה ועדיפות על השוק בחצי שנה"),
+        (mcap is not None and mcap >= 2e9, "חברה בשווי 2 מיליארד $ לפחות"),
+        (fund_score is not None and fund_score >= 60, "יסודות חזקים (צמיחה ורווחיות)"),
+    ]
+    missing = [t for ok, t in checks if not ok]
+    if not missing:
+        return {"ok": True, "label": "מתאימה גם להחזקה ארוכה", "why": "כל 5 תנאי הטווח הארוך מתקיימים", "missing": []}
+    if trend and len(missing) <= 2:
+        return {"ok": False, "label": "מגמה ארוכה בבנייה", "why": "חסר: " + " · ".join(missing), "missing": missing}
+    return {"ok": False, "label": "מסחר לטווח קצר בלבד", "why": "חסר: " + " · ".join(missing), "missing": missing}
 
 
 def run(today=None):
@@ -283,7 +288,7 @@ def run(today=None):
                          "gm": i.get("grossMargins"), "roe": i.get("returnOnEquity"), "fpe": i.get("forwardPE"),
                          "peg": i.get("trailingPegRatio"), "inst": i.get("heldPercentInstitutions"),
                          "target": i.get("targetMeanPrice"), "rec": i.get("recommendationMean")}
-        o["horizon"] = long_term(f, x["parts"].get("fund") if x.get("info") else None)
+        o["horizon"] = long_term(f, x["parts"].get("fund") if x.get("info") else None, m.get("mcap") or m.get("mcap_est"))
         if series:
             s = compute(hist[t], with_series=True)["series"]
             o["series"] = s
@@ -458,7 +463,7 @@ def run(today=None):
                 alert.append("מתחת לממוצע 20")
             if line_long and now and now < line_long:
                 alert.append("מתחת לקו הבחינה לטווח ארוך")
-            pick_track.append({"t": t, "first": p_["date"], "horizon": long_term(f, r_["parts"].get("fund") if r_ and r_.get("info") else None), "entry": entry, "now": now, "peak": peak,
+            pick_track.append({"t": t, "first": p_["date"], "horizon": long_term(f, r_["parts"].get("fund") if r_ and r_.get("info") else None, (meta.get(t) or {}).get("mcap") or (meta.get(t) or {}).get("mcap_est")), "entry": entry, "now": now, "peak": peak,
                                "ret": (now / entry - 1) if now else None, "spy": spy_ret,
                                "dd": (now / peak - 1) if now and peak else None, "status": status, "reason": reason,
                                "stop_trade": stop_trade, "sma20": f["sma20"] if f else None, "line_long": line_long,
