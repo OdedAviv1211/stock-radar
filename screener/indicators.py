@@ -37,6 +37,7 @@ def compute(df, bench_close=None, with_series=False):
     sma50, sma150, sma200 = float(s50.iloc[-1]), float(s150.iloc[-1]), float(s200.iloc[-1])
     sma150_slope = float(s150.iloc[-1] / s150.iloc[-21] - 1)
     sma200_slope = float(s200.iloc[-1] / s200.iloc[-22] - 1) if not np.isnan(s200.iloc[-22]) else np.nan
+    sma200_slope3m = float(s200.iloc[-1] / s200.iloc[-64] - 1) if len(s200) > 64 and not np.isnan(s200.iloc[-64]) else np.nan
     win = min(252, len(df))
     hi52, lo52 = float(h.iloc[-win:].max()), float(l.iloc[-win:].min())
 
@@ -95,7 +96,7 @@ def compute(df, bench_close=None, with_series=False):
 
     f = {
         "price": price, "sma20": float(c.iloc[-20:].mean()), "sma50": sma50, "sma150": sma150, "sma200": sma200,
-        "sma150_slope": sma150_slope, "sma200_slope": sma200_slope,
+        "sma150_slope": sma150_slope, "sma200_slope": sma200_slope, "sma200_slope3m": sma200_slope3m,
         "ext_sma150": price / sma150 - 1, "ext_sma50": price / sma50 - 1, "sma50_vs_150": sma50 / sma150 - 1,
         "hi52": hi52, "lo52": lo52, "dist_hi": price / hi52 - 1, "above_lo": price / lo52 - 1,
         **r, "rs_raw": rs_raw, "ex_ret_3m": ex3, "ex_ret_6m": ex6,
