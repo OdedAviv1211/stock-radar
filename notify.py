@@ -61,10 +61,11 @@ def build(rep, url):
         lines.append("<b>⚡ רשימת המעקב</b>")
         for w in ev[:6]:
             lines.append(f"• <b>{e(w['t'])}</b> – {e(w['events'][0]['text'])} ➜ {e(w.get('action', ''))}")
-    lines.append("<b>🔟 המניות של היום</b> (🌳 מתאימה גם לטווח ארוך · ⚡ מסחר קצר בלבד)")
+    lines.append("<b>🔟 המניות של היום</b> (🌳 מתאימה גם לטווח ארוך · 🌱 מגמה ארוכה בבנייה · ⚡ מסחר קצר)")
     for p in rep["picks"]:
         ex = f" · ⚠️ דוח בעוד {max(0, p['earn'])} ימים" if p.get("earn") is not None and p["earn"] <= 10 else ""
-        hz = "🌳" if (p.get("horizon") or {}).get("ok") else "⚡"
+        hzd = p.get("horizon") or {}
+        hz = "🌳" if hzd.get("ok") else ("🌱" if hzd.get("label") == "מגמה ארוכה בבנייה" else "⚡")
         st = f" · סטופ {p['plan']['stop']:.2f}" if p.get("plan") else ""
         lines.append(f"{p['rank']}. {hz} <b>{e(p['t'].replace('.TA', ''))}</b> · {e(p['theme'])} · {round(p['score'])}{st}{ex}{tone(p['t'])}")
     if rep.get("israel"):
