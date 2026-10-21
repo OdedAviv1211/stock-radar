@@ -146,6 +146,18 @@ def exec_summary(rep):
         if big[1] >= 5:
             txt += f" · ⚠ ריכוז: {big[1]} מתוך {len(pk)} ב{big[0]} – הימור אחד, לא 10"
         out.append({"k": "המלצות היום", "lv": 1 if big[1] >= 5 else 0, "t": txt})
+    Q = rep.get("quality_dips") or {}
+    if Q.get("items"):
+        it = Q["items"]
+        reb = [x["t"] for x in it if x["rebound"]]
+        txt = f"{len(it)} מניות רווחיות, צומחות ועם קופה נזילה ירדו 15%+ מהשיא (S&P 500: {Q['spy_dd'] * 100:+.0f}% מהשיא): " + \
+              ", ".join(f"{x['t']} {x['dd'] * 100:.0f}%" for x in it[:6])
+        if reb:
+            txt += f" · מתחילות להתאושש: {', '.join(reb[:4])}"
+        trq = Q.get("track") or {}
+        if trq.get("n"):
+            txt += f" · מעקב: {trq['ex'] * 100:+.1f}% מול המדד ({trq['n']})"
+        out.append({"k": "איכות בהנחה", "lv": 1 if reb else 0, "t": txt})
     stp_all = [x for x in rep.get("pick_track", []) if x.get("alert") and "מתחת לסטופ המסחר" in x["alert"]]
     stp = [x["t"] for x in stp_all if x.get("held")]
     if stp:
@@ -296,7 +308,12 @@ def run(today=None):
            [x["t"] for x in elig if meta[x["t"]]["market"] == "TASE"][:25]
     log(f"eligible {len(elig)}, fundamentals for {len(cand)}")
     pf_t = [pz["ticker"] for pz in portfolio if pz["ticker"] in feats]
-    infos = data.fundamentals(list(dict.fromkeys(cand + pf_t)))
+    # מועמדות למניות איכות שנפלו: שווי מעל מיליארד וירידה של 15%+ מהשיא
+    qd_cand = sorted([t for t, f in feats.items() if meta[t]["market"] == "US" and not meta[t].get("pf_only")
+                      and (meta[t].get("mcap") or 0) >= config.QD_MIN_MCAP and f["dist_hi"] <= -config.QD_MIN_DD
+                      and f["price"] >= 5 and (config.QD_SECTORS is None or meta[t].get("sector") in config.QD_SECTORS)],
+                     key=lambda t: -(meta[t].get("mcap") or 0))[:config.QD_MAX_FETCH]
+    infos = data.fundamentals(list(dict.fromkeys(cand + pf_t + qd_cand)))
 
     # ---- ניקוד שלב ב' (עם פונדמנטלי) + סיווג ----
     for t, x in rows.items():
@@ -797,6 +814,69 @@ def run(today=None):
     except Exception as e:  # noqa
         log(f"deposit plan skipped: {e}")
         report["deposit_plan"] = []
+    # ---- מניות איכות שנפלו: חזקות פיננסית, ירדו 15%+ מהשיא – עם מעקב ----
+    try:
+        spy_dd = float(spy["Close"].iloc[-1] / spy["Close"].iloc[-252:].max() - 1)
+        qd = []
+        for t in qd_cand:
+            i = infos.get(t) or {}
+            f = feats[t]
+            rev, rg, pm = i.get("totalRevenue"), i.get("revenueGrowth"), i.get("profitMargins")
+            cash, debt, cr = i.get("totalCash"), i.get("totalDebt"), i.get("currentRatio")
+            if not (rev and rev > 0 and rg is not None and rg > 0 and pm is not None and pm > 0):
+                continue
+            liquid = (cash is not None and debt is not None and cash >= debt) or (cr is not None and cr >= 1.5)
+            if not liquid:
+                continue
+            sec = meta[t].get("sector") or i.get("sector") or ""
+            rebound = f["price"] > f["sma20"] and f["r5d"] > 0
+            qd.append({"t": t, "name": meta[t].get("name") or i.get("shortName") or t, "sector": sec,
+                       "tech": sec == "Technology", "mcap": meta[t].get("mcap"), "price": f["price"],
+                       "dd": f["dist_hi"], "hi52": f["hi52"], "r21": f["r21"], "rev_g": rg, "margin": pm,
+                       "net_cash": (cash - debt) if cash is not None and debt is not None else None,
+                       "cr": cr, "fpe": i.get("forwardPE"), "fcf": i.get("freeCashflow"),
+                       "vs_mkt": f["dist_hi"] - spy_dd, "above200": f["price"] > f["sma200"],
+                       "state": "מתחילה להתאושש (מעל ממוצע 20, שבוע חיובי)" if rebound else "עדיין בירידה – לחכות לסימן היפוך",
+                       "rebound": rebound, "sma200": f["sma200"]})
+        qd.sort(key=lambda x: (not x["tech"], -((x["rev_g"] or 0) + (x["margin"] or 0))))
+        # מעקב: מתי נכנסה לרשימה, במחיר כמה, ומה קרה מאז
+        qpath = os.path.join(ROOT, "data", "dips_history.csv")
+        qh = list(csv.DictReader(open(qpath, encoding="utf-8"))) if os.path.exists(qpath) else []
+        first = {}
+        for r in qh:
+            first.setdefault(r["ticker"], r)
+        cur_t = {x["t"] for x in qd}
+        for x in qd:
+            f0 = first.get(x["t"])
+            x["since"] = f0["date"] if f0 else asof
+            x["entry"] = float(f0["price"]) if f0 else x["price"]
+            x["ret_since"] = x["price"] / x["entry"] - 1
+            sp0 = spy["Close"].loc[:x["since"]]
+            x["spy_since"] = float(spy["Close"].iloc[-1] / sp0.iloc[-1] - 1) if len(sp0) else None
+        left = []
+        for t, f0 in first.items():
+            if t in cur_t or t not in feats:
+                continue
+            fx_ = feats[t]
+            sp0 = spy["Close"].loc[:f0["date"]]
+            why = "התאוששה – פחות מ-15% מהשיא" if fx_["dist_hi"] > -config.QD_MIN_DD else "לא עומדת יותר בתנאי האיכות/הנזילות"
+            left.append({"t": t, "since": f0["date"], "entry": float(f0["price"]), "price": fx_["price"],
+                         "ret_since": fx_["price"] / float(f0["price"]) - 1,
+                         "spy_since": float(spy["Close"].iloc[-1] / sp0.iloc[-1] - 1) if len(sp0) else None, "why": why})
+        qh = [r for r in qh if r["date"] != asof] + [{"date": asof, "ticker": x["t"], "price": round(x["price"], 4),
+                                                       "dd": round(x["dd"], 4)} for x in qd]
+        with open(qpath, "w", newline="", encoding="utf-8") as fh:
+            w = csv.DictWriter(fh, fieldnames=["date", "ticker", "price", "dd"])
+            w.writeheader()
+            w.writerows(qh)
+        tr_ = [x for x in qd + left if x.get("spy_since") is not None and x["since"] != asof]
+        report["quality_dips"] = {"spy_dd": spy_dd, "checked": len(qd_cand), "items": qd, "left": left,
+                                  "track": {"n": len(tr_), "avg": sum(x["ret_since"] for x in tr_) / len(tr_) if tr_ else None,
+                                            "ex": sum(x["ret_since"] - x["spy_since"] for x in tr_) / len(tr_) if tr_ else None}}
+        log(f"quality dips: {len(qd)} of {len(qd_cand)} candidates")
+    except Exception as e:  # noqa
+        log(f"quality dips skipped: {e}")
+        report["quality_dips"] = None
     # ---- קציר מנהלים: שורות תחתונות ----
     try:
         report["exec"] = exec_summary(report)
