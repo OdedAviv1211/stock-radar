@@ -32,6 +32,9 @@ header{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content
 nav{position:sticky;top:0;z-index:5;background:var(--bg);display:flex;gap:6px;overflow-x:auto;padding:8px 0;margin-bottom:8px;scrollbar-width:none}
 nav a{white-space:nowrap;text-decoration:none;color:var(--muted);background:var(--card);border:1px solid var(--line);padding:6px 12px;border-radius:999px;font-size:13px;font-weight:500}
 nav a:hover{color:var(--ink);border-color:var(--accent)}
+#briefNav{position:sticky;top:0;z-index:6}
+.tabhide{display:none!important}
+nav a.on{color:#fff;background:var(--accent);border-color:var(--accent)}
 section{margin:22px 0 30px;scroll-margin-top:60px}
 .sec-h{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
@@ -169,21 +172,17 @@ details.nwd{margin-top:8px}details.nwd>summary{cursor:pointer;font-size:13px;col
 </header>
 
 <section id="brief">
-  <div class="sec-h"><div><h2>הדוח היומי</h2><div class="sub">1 · התיקים שלי ועמידה ביעד · 2 · ניתוח יומי · 3 · דוח מחקר — כל חלק נפתח ונסגר (הרחבה/צמצום), לחיצה על שורה = פירוט</div></div></div>
+  <div class="sec-h"><div><h2>הדוח היומי</h2><div class="sub">דוח אחד – בחירת לשונית מציגה את החלק שלה · "הכל" מציג את כל הנתונים · לחיצה על שורה = פירוט</div></div></div>
+  <nav id="briefNav" aria-label="לשוניות הדוח"></nav>
   <div class="card" style="padding:4px 14px 12px" id="briefBox"></div>
-  <button class="morebtn" id="moreBtn" aria-expanded="false">הרחבה – הדוח המלא (גרפים, מפת חום, ענפים, סריקה, בדיקה לאחור) ▾</button>
 </section>
 
-<div id="full" hidden>
+<div id="full">
 <section id="market">
   <div class="grid g3" id="regimes"></div>
   <div id="regimeBanner"></div>
   <div class="kpis" id="breadth" style="margin-top:10px"></div>
 </section>
-<nav>
-  <a href="#portfolio" id="navPf">התיק שלי</a><a href="#watch">מעקב</a><a href="#top10">טופ 10</a><a href="#israel">ישראל</a><a href="#heatmap">מפת חום</a><a href="#themes">קטגוריות</a>
-  <a href="#groups">ענפים</a><a href="#caps">לפי גודל</a><a href="#scan">סריקה מלאה</a><a href="#track">ביצועי עבר</a><a href="#backtest">בדיקה לאחור</a><a href="#method">שיטה</a>
-</nav>
 <section id="portfolio">
   <div class="sec-h"><div><h2>התיק שלי</h2><div class="sub">החזקה לטווח ארוך · קו בחינה = 3% מתחת לממוצע 200 · עריכה בקובץ portfolio.csv</div></div></div>
   <div id="pfBox"></div>
@@ -481,6 +480,25 @@ function pickTrackHtml(){
    <div><b>קו בחינה לטווח ארוך: ${x.line_long?x.line_long.toFixed(2):'—'}</b> <span class="sub">(3% מתחת לממוצע 200 – מתחתיו בוחנים מחדש את ההחזקה)</span></div></div></details>`).join('');
 }
 
+
+// ---- מניות איכות שנפלו ----
+function qualityDipsHtml(){
+  const Q=D.quality_dips; if(!Q||!Q.items) return '';
+  const m=v=>v==null?'—':(Math.abs(v)>=1e9?'$'+(v/1e9).toFixed(1)+'B':'$'+(v/1e6).toFixed(0)+'M');
+  let h=`<div class="bt">💎 איכות בהנחה – חזקות פיננסית שנפלו 15%+ מהשיא</div>
+  <div class="sub">תנאים: שווי מעל $1B · הכנסות וצמיחה שנתית חיובית · רווחית · קופה נזילה (מזומן ≥ חוב או יחס שוטף ≥ 1.5) · ירידה של 15%+ משיא 52 שבועות. S&amp;P 500 עצמו: ${pct(Q.spy_dd)} מהשיא. נבדקו ${Q.checked} מועמדות, עברו ${Q.items.length}. ${Q.track&&Q.track.n?`מעקב: ממוצע ${pct(Q.track.avg)} מאז הכניסה לרשימה, ${pct(Q.track.ex)} מול המדד (${Q.track.n}).`:'המעקב מתחיל היום.'}</div>
+  <div class="sub" style="margin-bottom:4px"><b>איך לקרוא:</b> זו רשימת קנייה פוטנציאלית לטווח ארוך, לא איתות כניסה. כניסה עדיפה כשמופיע 🔄 (חזרה מעל ממוצע 20) – לא בזמן נפילה.</div>`;
+  if(!Q.items.length) return h+'<div class="sub">אין היום מניות שעומדות בכל התנאים.</div>';
+  h+=Q.items.map(x=>`<details class="bi"><summary><b class="tk">${esc(x.t)}</b><span class="why">${x.tech?'💻 ':''}<b class="num down">${(x.dd*100).toFixed(0)}%</b> מהשיא · צמיחה ${pct(x.rev_g,0)} · רווחיות ${pct(x.margin,0)}${x.rebound?' · <b style="color:var(--up)">🔄 מתאוששת</b>':''}</span><span class="ex"></span></summary>
+   <div class="bd"><div class="sub">${esc(x.name)} · ${esc(x.sector)} · שווי ${m(x.mcap)}</div>
+   <div class="sub num">מחיר ${x.price.toFixed(2)} · שיא 52 שבועות ${x.hi52.toFixed(2)} · חודש ${pct(x.r21)} · ${x.dd<Q.spy_dd?`נפלה ${((Q.spy_dd-x.dd)*100).toFixed(0)} נק' יותר מהשוק`:'נפלה פחות מהשוק'}</div>
+   <div class="sub num">מזומן נטו ${m(x.net_cash)} · יחס שוטף ${x.cr!=null?x.cr.toFixed(1):'—'} · תזרים חופשי ${m(x.fcf)} · מכפיל עתידי ${x.fpe!=null?x.fpe.toFixed(0):'—'} · ${x.above200?'מעל ממוצע 200':'מתחת לממוצע 200'}</div>
+   <div><b>מצב:</b> ${esc(x.state)}</div>
+   <div class="sub num">ברשימה מאז ${esc(x.since)} (מחיר ${x.entry.toFixed(2)}) · מאז: ${pct(x.ret_since)} · S&amp;P 500 באותה תקופה: ${pct(x.spy_since)}</div></div></details>`).join('');
+  if((Q.left||[]).length) h+=`<details class="bi"><summary><b>יצאו מהרשימה (${Q.left.length})</b><span class="why">מה קרה להן מאז שנכנסו</span><span class="ex"></span></summary><div class="bd">${Q.left.map(x=>`<div class="sub num"><b class="tk">${esc(x.t)}</b> · מאז ${esc(x.since)}: ${pct(x.ret_since)} (מדד ${pct(x.spy_since)}) – ${esc(x.why)}</div>`).join('')}</div></details>`;
+  return h;
+}
+
 // ---- method ----
 function renderMethod(){
   const w=D.weights;
@@ -516,7 +534,7 @@ function renderWatch(){
 
 function renderPortfolio(){
   const P=D.portfolio||[];
-  $('#portfolio').style.display=P.length?'':'none'; $('#navPf').style.display=P.length?'':'none';
+  $('#portfolio').style.display=P.length?'':'none'; 
   if(!P.length) return;
   const tot=P.filter(p=>p.value&&p.buy&&p.shares&&p.cur==='$');
   const lbl={3:'מכירה',2:'אזהרה',1:'לתשומת לב',0:'החזק'};
@@ -589,12 +607,13 @@ const LVL={3:'מכירה',2:'אזהרה',1:'לתשומת לב',0:'להחזיק'}
 function renderBrief(){
   const ils=v=>'₪'+Math.round(v).toLocaleString();
   const yr=v=>v==null?'80+':String(v);
-  let h='';
+  let h='<div class="tabp" data-tab="ex">';
   // ===== קציר מנהלים =====
   const EX=D.exec||[];
   if(EX.length){const col=l=>l>=3?'var(--down)':l===2?'#b26a00':l===1?'var(--accent)':'var(--up)';
     h+=`<div class="card" style="border:2px solid var(--accent);padding:12px 14px;margin-bottom:12px"><div style="font-weight:800;font-size:17px;margin-bottom:6px">קציר מנהלים – השורות התחתונות</div>`+
     EX.map(x=>`<div style="display:flex;gap:8px;padding:5px 0;border-top:1px solid var(--line)"><span style="flex:0 0 8px;border-radius:4px;background:${col(x.lv)}"></span><div><b>${esc(x.k)}:</b> ${esc(x.t)}</div></div>`).join('')+`</div>`;}
+  h+='</div><div class="tabp" data-tab="pf">';
   // ===== 1. התיקים שלי =====
   h+=`<details class="blk" open><summary><span class="bh">1 · התיקים שלי</span><span class="ex"></span></summary>`;
   const G=D.goal;
@@ -632,6 +651,7 @@ function renderBrief(){
   h+=`</details>`;
   const DP=D.deposit_plan||[];
   if(DP.length){h+=`<details class="blk sub2" open><summary><span class="bt" style="margin:0">תוכנית הפקדה החודש</span><span class="ex"></span></summary>`+DP.map(d=>`<div style="padding:4px 0"><b>${esc(d.acct.split(' – ')[0])} · ₪${d.amount_ils.toLocaleString()}</b>${d.items.length?'<ul class="rs">'+d.items.map(i=>`<li><b class="tk">${esc(i.t)}</b> – ${esc(i.why)} · ~$${i.usd.toLocaleString()}${i.shares?` · ${i.shares} מניות`:''}${i.note?` <span class="sub">(${esc(i.note)})</span>`:''}</li>`).join('')+'</ul>':`<div class="sub">${esc(d.note)}</div>`}</div>`).join('')+`<div class="sub">חלוקה שווה בין עד 3 מועמדות, בלי לחרוג מתקרת המשקל בתיק. לא ייעוץ – החלטה שלך.</div></details>`;}
+  h+='</div><div class="tabp" data-tab="day">';
   // ===== 2. ניתוח יומי =====
   const reg=D.regime.map(r=>`${esc(r.name.split(' (')[0])}: <b>${esc(r.status)}</b>`).join(' · ');
   h+=`<details class="blk" open><summary><span class="bh">2 · ניתוח יומי</span><span class="ex"></span></summary>`;
@@ -646,8 +666,7 @@ function renderBrief(){
      <div style="margin-top:8px"><b>מה נאמר</b></div>${newsHtml(p.t)}</div></details>`).join('');
   if(D.israel&&D.israel.length) h+=`<div class="sub" style="margin-top:8px">🇮🇱 ת"א: ${D.israel.map(p=>esc(p.t.replace('.TA',''))).join(' · ')}</div>`;
   if((D.picks_ext||[]).length) h+=`<details class="bi"><summary><b>הרחבה: מקומות ${D.picks_ext[0].rank}–${D.picks_ext[D.picks_ext.length-1].rank}</b><span class="why">מניות נוספות עם ציון גבוה, לפי הסדר</span><span class="ex"></span></summary><div class="bd">${D.picks_ext.map(p=>`<div style="padding:3px 0"><b class="tk">${p.rank}. ${esc(p.t)}</b> · ${p.horizon?(p.horizon.ok?'🌳':(p.horizon.label==='מגמה ארוכה בבנייה'?'🌱':'⚡')):''} ${esc(p.theme)} · ציון <b class="num">${Math.round(p.score)}</b>${p.plan?` · <b style="color:var(--down)">סטופ ${p.plan.stop.toFixed(2)}</b>`:''}</div>`).join('')}</div></details>`;
-  h+=pickTrackHtml();
-  h+=`</details>`;
+  h+=`</details></div><div class="tabp" data-tab="qd">`+(qualityDipsHtml()||'<div class="sub" style="padding:12px 0">אין נתוני איכות בהנחה בדוח הזה.</div>')+`</div><div class="tabp" data-tab="trk">`+(pickTrackHtml()||'<div class="sub" style="padding:12px 0">אין עדיין נתוני מעקב.</div>')+`</div><div class="tabp" data-tab="res">`;
   // ===== 3. דוח מחקר =====
   h+=`<details class="blk" open><summary><span class="bh">3 · דוח מחקר – מה נאמר</span><span class="ex"></span></summary>`;
   const pfT=[...new Set((D.portfolio||[]).map(p=>p.t))], all=[...pfT,...D.picks.map(p=>p.t)];
@@ -657,11 +676,28 @@ function renderBrief(){
   if(off.length) h+=`<div class="bt">דיווחים רשמיים ל-SEC השבוע</div><ul class="nws">${off.slice(0,10).map(({t,i})=>`<li><b class="tk">${esc(t)}</b> <a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.title)}</a> <span class="src">· ${esc(i.date)}</span></li>`).join('')}</ul>`;
   if(!hl.length&&!off.length) h+=`<div class="sub">אין פרסומים מהותיים היום.</div>`;
   if(D.research_url) h+=`<div class="bt">אמירות פוליטיות ומאקרו</div><div style="font-size:14px">טראמפ, הבית הלבן, הפד, מאסק ומנכ"לי שרשרת ה-AI – ההשפעה על סקטורים ומניות: <a href="${esc(D.research_url)}" target="_blank" rel="noopener">חדר המחקר ←</a></div>`;
-  h+=`</details>`;
+  h+=`</details></div>`;
   $('#briefBox').innerHTML=h;
+  briefTab(briefCur());
 }
-$('#moreBtn').onclick=()=>{const f=$('#full');f.hidden=!f.hidden;$('#moreBtn').setAttribute('aria-expanded',String(!f.hidden));$('#moreBtn').textContent=f.hidden?'הרחבה – הדוח המלא (גרפים, מפת חום, ענפים, סריקה, בדיקה לאחור) ▾':'סגירת הדוח המלא ▴';if(!f.hidden){renderHeat();}};
-
+const BTABS=[['ex','סיכום',['ex']],['pf','התיקים שלי',['pf','#portfolio']],['watch','רשימת מעקב',['#watch']],['day','ניתוח יומי',['day','#market']],
+ ['top','טופ 10',['#top10']],['qd','💎 איכות בהנחה',['qd']],['trk','מעקב וביצועים',['trk','#track','#backtest']],['il','ישראל',['#israel']],
+ ['heat','מפת חום',['#heatmap']],['th','קטגוריות וענפים',['#themes','#groups','#caps']],['scan','סריקה מלאה',['#scan']],['res','מחקר',['res']],['method','שיטה',['#method']],['all','הכל',[]]];
+function briefCur(){try{const k=localStorage.getItem('briefTab');return BTABS.some(x=>x[0]===k)?k:'ex'}catch(e){return 'ex'}}
+function briefTab(k){
+  const T=BTABS.find(x=>x[0]===k)||BTABS[0], show=T[2], all=k==='all';
+  $('#briefNav').innerHTML=BTABS.map(([id,l])=>`<a href="#brief" data-k="${id}" class="${id===k?'on':''}">${l}</a>`).join('');
+  try{const on=$('#briefNav a.on'),n=$('#briefNav');n.scrollLeft+=on.getBoundingClientRect().left-n.getBoundingClientRect().left-(n.clientWidth-on.offsetWidth)/2}catch(e){}
+  let anyP=false;
+  document.querySelectorAll('#briefBox .tabp').forEach(el=>{const v=all||show.includes(el.dataset.tab);el.hidden=!v;anyP=anyP||v});
+  $('#briefBox').classList.toggle('tabhide',!anyP);
+  document.querySelectorAll('#full>section').forEach(sec=>sec.classList.toggle('tabhide',!(all||show.includes('#'+sec.id))));
+  if(!all) document.querySelectorAll('#briefBox .tabp details.blk').forEach(d=>d.open=true);
+  if(all||show.includes('#heatmap')) try{renderHeat()}catch(e){}
+  try{localStorage.setItem('briefTab',k)}catch(e){}
+}
+document.addEventListener('click',ev=>{const a=ev.target.closest('#briefNav a');if(!a)return;ev.preventDefault();
+  briefTab(a.dataset.k);$('#brief').scrollIntoView({behavior:'smooth'});});
 function renderAll(){renderBrief();renderPortfolio();renderWatch();renderGroups();renderBacktest();renderMarket();renderPicks();renderHeat();renderThemes();renderCaps();renderTable();renderTrack();renderMethod()}
 renderAll();
 let rt; addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(renderHeat,150)});
