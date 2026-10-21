@@ -26,6 +26,10 @@ def build(rep, url):
         age_h = 0
     if age_h > 30:
         lines.append(f"⚠️ הדוח לא התעדכן מאז {e(gen)} – כנראה שהריצה הלילית נכשלה (לבדוק בלשונית Actions).")
+    top_links = [f'🔗 <a href="{e(url)}">הדוח המלא באתר ←</a>']
+    if rep.get("research_url"):
+        top_links.append(f'🔬 <a href="{e(rep["research_url"])}">חדר המחקר ←</a>')
+    lines.append(" · ".join(top_links))
     ex_ = rep.get("exec") or []
     if ex_:
         dot = {3: "🔴", 2: "🟠", 1: "🔵", 0: "🟢"}
@@ -74,6 +78,12 @@ def build(rep, url):
         lines.append(f"{p['rank']}. {hz} <b>{e(p['t'].replace('.TA', ''))}</b> · {e(p['theme'])} · {round(p['score'])}{st}{ex}{tone(p['t'])}")
     if rep.get("israel"):
         lines.append("🇮🇱 " + " · ".join(e(p["t"].replace(".TA", "")) for p in rep["israel"]))
+    Q = rep.get("quality_dips") or {}
+    if Q.get("items"):
+        lines.append(f"<b>💎 איכות בהנחה</b> (רווחיות, צומחות, קופה נזילה, ירדו 15%+ מהשיא)")
+        for x in Q["items"][:6]:
+            lines.append(f"• <b>{e(x['t'])}</b> {x['dd'] * 100:.0f}% מהשיא · צמיחה {x['rev_g'] * 100:.0f}% · רווחיות {x['margin'] * 100:.0f}%"
+                         f"{' · 🔄 מתאוששת' if x['rebound'] else ''}{' · טכנולוגיה' if x['tech'] else ''}")
     xs = [x for x in rep.get("exits", []) if x.get("exit")]
     if xs:
         lines.append("<b>🚪 כלל יציאה (המלצות קודמות)</b>")
@@ -112,6 +122,50 @@ def build(rep, url):
     return "\n".join(lines)
 
 
+def build_short(rep, url):
+    """סופר-תקציר: השורות התחתונות + קישור לדוח המלא."""
+    e = html.escape
+    lines = [f"📈 <b>הדוח היומי</b> · סגירה {e(rep['asof'])}"]
+    gen = rep.get("generated", "")
+    try:
+        age_h = (datetime.now(timezone.utc) - datetime.strptime(gen, "%Y-%m-%d %H:%M UTC").replace(tzinfo=timezone.utc)).total_seconds() / 3600
+    except ValueError:
+        age_h = 0
+    if age_h > 30:
+        lines.append(f"⚠️ הדוח לא התעדכן מאז {e(gen)} – כנראה שהריצה הלילית נכשלה.")
+    dot = {3: "🔴", 2: "🟠", 1: "🔵", 0: "🟢"}
+    keep = ("מה לעשות היום", "יעד ההכנסה", "סטופ", "דוחות השבוע", "איכות בהנחה", "בקרה")
+    ex_ = rep.get("exec") or []
+    sel = [x for x in ex_ if x["k"].startswith(keep)] or ex_[:5]
+    lines.append("")
+    for x in sel:
+        t = x["t"] if len(x["t"]) <= 160 else x["t"][:157] + "…"
+        lines.append(f"{dot.get(x['lv'], '•')} <b>{e(x['k'])}:</b> {e(t)}")
+    picks = rep.get("picks") or []
+    if picks:
+        lines.append("🏆 <b>טופ 5:</b> " + " · ".join(e(p["t"].replace(".TA", "")) for p in picks[:5]))
+    lines += ["", f'👉 <b><a href="{e(url)}">לדוח המלא</a></b>']
+    if rep.get("research_url"):
+        lines.append(f'🔬 <a href="{e(rep["research_url"])}">חדר המחקר</a>')
+    lines.append("<i>כלי סינון אוטומטי, לא ייעוץ השקעות.</i>")
+    return "\n".join(lines)
+
+
+def split_msg(msg, lim=3900):
+    """טלגרם מגביל ל-4096 תווים – מפצלים בגבולות שורה כדי שהקישורים בסוף לא ייחתכו."""
+    parts, cur = [], ""
+    for ln in msg.split("\n"):
+        ln = ln[:lim]
+        if cur and len(cur) + len(ln) + 1 > lim:
+            parts.append(cur)
+            cur = ln
+        else:
+            cur = f"{cur}\n{ln}" if cur else ln
+    if cur:
+        parts.append(cur)
+    return parts
+
+
 def _file_chat():
     p = os.path.join(ROOT, "telegram_chat_id.txt")
     return open(p, encoding="utf-8").read().strip() if os.path.exists(p) else None
@@ -122,7 +176,7 @@ def tg_send(token, chat, msg):
     api = f"https://api.telegram.org/bot{token}/"
     bot_id = token.split(":")[0]
     post = lambda c: requests.post(api + "sendMessage", timeout=30, data={
-        "chat_id": c, "text": msg[:4000], "parse_mode": "HTML", "disable_web_page_preview": "true"})
+        "chat_id": c, "text": msg, "parse_mode": "HTML", "disable_web_page_preview": "true"})
     r = None
     for c in [x.strip() for x in (chat, _file_chat()) if x and x.strip() != bot_id]:
         r = post(c)
@@ -157,15 +211,19 @@ def main():
         repo = os.environ.get("GITHUB_REPOSITORY", "user/stock-radar")
         owner, name = repo.split("/")
         url = f"https://{owner.lower()}.github.io/{name}/"
-    msg = build(rep, url)
+    msg = build_short(rep, url) if os.environ.get("TG_FULL") != "1" else build(rep, url)
     if not token:
         print("TELEGRAM_TOKEN / TELEGRAM_CHAT_ID not set – printing message only:\n")
         print(msg)
         return
-    r = tg_send(token, chat, msg)
-    print(r.status_code, r.text[:300])
-    if not r.ok:
-        sys.exit(1)
+    parts = split_msg(msg)
+    for i, part in enumerate(parts):
+        if len(parts) > 1:
+            part = f"({i + 1}/{len(parts)})\n" + part
+        r = tg_send(token, chat, part)
+        print(i + 1, len(part), r.status_code, r.text[:200])
+        if not r.ok:
+            sys.exit(1)
 
 
 if __name__ == "__main__":
