@@ -82,7 +82,7 @@ def build(rep, url):
     if Q.get("items"):
         lines.append(f"<b>💎 איכות בהנחה</b> (רווחיות, צומחות, קופה נזילה, ירדו 15%+ מהשיא)")
         for x in Q["items"][:6]:
-            lines.append(f"• <b>{e(x['t'])}</b> {x['dd'] * 100:.0f}% מהשיא · צמיחה {x['rev_g'] * 100:.0f}% · רווחיות {x['margin'] * 100:.0f}%"
+            lines.append(f"• <b>{e(x['t'])}</b> {x.get('grade', '')}{x.get('score', '')} · {x['dd'] * 100:.0f}% מהשיא · צמיחה {x['rev_g'] * 100:.0f}% · רווחיות {x['margin'] * 100:.0f}%"
                          f"{' · 🔄 מתאוששת' if x['rebound'] else ''}{' · טכנולוגיה' if x['tech'] else ''}")
     xs = [x for x in rep.get("exits", []) if x.get("exit")]
     if xs:
@@ -134,7 +134,7 @@ def build_short(rep, url):
     if age_h > 30:
         lines.append(f"⚠️ הדוח לא התעדכן מאז {e(gen)} – כנראה שהריצה הלילית נכשלה.")
     dot = {3: "🔴", 2: "🟠", 1: "🔵", 0: "🟢"}
-    keep = ("מה לעשות היום", "יעד ההכנסה", "סטופ", "דוחות השבוע", "איכות בהנחה", "בקרה")
+    keep = ("מה לעשות היום", "יעד ההכנסה", "סנכרון", "סטופ", "דוחות השבוע", "איכות בהנחה", "בקרה")
     ex_ = rep.get("exec") or []
     sel = [x for x in ex_ if x["k"].startswith(keep)] or ex_[:5]
     lines.append("")
