@@ -489,11 +489,15 @@ function qualityDipsHtml(){
   <div class="sub">תנאים: שווי מעל $1B · הכנסות וצמיחה שנתית חיובית · רווחית · קופה נזילה (מזומן ≥ חוב או יחס שוטף ≥ 1.5) · ירידה של 15%+ משיא 52 שבועות. S&amp;P 500 עצמו: ${pct(Q.spy_dd)} מהשיא. נבדקו ${Q.checked} מועמדות, עברו ${Q.items.length}. ${Q.track&&Q.track.n?`מעקב: ממוצע ${pct(Q.track.avg)} מאז הכניסה לרשימה, ${pct(Q.track.ex)} מול המדד (${Q.track.n}).`:'המעקב מתחיל היום.'}</div>
   <div class="sub" style="margin-bottom:4px"><b>איך לקרוא:</b> זו רשימת קנייה פוטנציאלית לטווח ארוך, לא איתות כניסה. כניסה עדיפה כשמופיע 🔄 (חזרה מעל ממוצע 20) – לא בזמן נפילה.</div>`;
   if(!Q.items.length) return h+'<div class="sub">אין היום מניות שעומדות בכל התנאים.</div>';
-  h+=Q.items.map(x=>`<details class="bi"><summary><b class="tk">${esc(x.t)}</b><span class="why">${x.tech?'💻 ':''}<b class="num down">${(x.dd*100).toFixed(0)}%</b> מהשיא · צמיחה ${pct(x.rev_g,0)} · רווחיות ${pct(x.margin,0)}${x.rebound?' · <b style="color:var(--up)">🔄 מתאוששת</b>':''}</span><span class="ex"></span></summary>
+  const gc=g=>g==='A'?'var(--up)':g==='B'?'var(--accent)':'var(--muted)';
+  h+=`<div class="sub" style="margin-bottom:4px"><b>דירוג 0–100:</b> צמיחה 25 · רווחיות 20 · מאזן 15 · תזרים 10 · תמחור 15 · תזמון (התאוששות ומעל ממוצע 200) 15. A ≥75, B ≥60. <b>אותה בדיקת איכות</b> משמשת גם את "התיקים שלי" – כך שמניה איכותית בתיק לא תקבל "לצמצם" רק בגלל ירידה.</div>`;
+  h+=Q.items.map((x,ix)=>`<details class="bi"><summary><b class="tk">${ix+1}. ${esc(x.t)} <span class="num" style="color:${gc(x.grade)}">${x.grade||''}${x.score!=null?x.score:''}</span></b><span class="why">${x.tech?'💻 ':''}<b class="num down">${(x.dd*100).toFixed(0)}%</b> מהשיא · צמיחה ${pct(x.rev_g,0)} · רווחיות ${pct(x.margin,0)}${x.rebound?' · <b style="color:var(--up)">🔄 מתאוששת</b>':''}${(x.held||[]).length?' · 💼 בתיק':''}<br><b>${esc(x.verdict||'')}</b></span><span class="ex"></span></summary>
    <div class="bd"><div class="sub">${esc(x.name)} · ${esc(x.sector)} · שווי ${m(x.mcap)}</div>
    <div class="sub num">מחיר ${x.price.toFixed(2)} · שיא 52 שבועות ${x.hi52.toFixed(2)} · חודש ${pct(x.r21)} · ${x.dd<Q.spy_dd?`נפלה ${((Q.spy_dd-x.dd)*100).toFixed(0)} נק' יותר מהשוק`:'נפלה פחות מהשוק'}</div>
    <div class="sub num">מזומן נטו ${m(x.net_cash)} · יחס שוטף ${x.cr!=null?x.cr.toFixed(1):'—'} · תזרים חופשי ${m(x.fcf)} · מכפיל עתידי ${x.fpe!=null?x.fpe.toFixed(0):'—'} · ${x.above200?'מעל ממוצע 200':'מתחת לממוצע 200'}</div>
    <div><b>מצב:</b> ${esc(x.state)}</div>
+   ${x.pts?`<div class="sub num">פירוט הציון: ${Object.entries(x.pts).map(([k,v])=>`${k} ${v}`).join(' · ')}</div>`:''}
+   ${(x.held||[]).length?`<div class="sub">💼 בתיק: ${x.held.map(hh=>`${esc(hh.acct)}${hh.w!=null?' '+(hh.w*100).toFixed(0)+'%':''} – ${esc(hh.action||'')}`).join(' · ')}</div>`:''}
    <div class="sub num">ברשימה מאז ${esc(x.since)} (מחיר ${x.entry.toFixed(2)}) · מאז: ${pct(x.ret_since)} · S&amp;P 500 באותה תקופה: ${pct(x.spy_since)}</div></div></details>`).join('');
   if((Q.left||[]).length) h+=`<details class="bi"><summary><b>יצאו מהרשימה (${Q.left.length})</b><span class="why">מה קרה להן מאז שנכנסו</span><span class="ex"></span></summary><div class="bd">${Q.left.map(x=>`<div class="sub num"><b class="tk">${esc(x.t)}</b> · מאז ${esc(x.since)}: ${pct(x.ret_since)} (מדד ${pct(x.spy_since)}) – ${esc(x.why)}</div>`).join('')}</div></details>`;
   return h;
@@ -637,13 +641,15 @@ function renderBrief(){
   Object.entries(accts).forEach(([an,list])=>{
     const tot=list.reduce((s,x)=>s+(x.value||0),0);
     const rows=list.slice().sort((x,y)=>(y.level||0)-(x.level||0)||(y.value||0)-(x.value||0));
-    const n3=rows.filter(r=>r.level>=3).length, n2=rows.filter(r=>r.level===2).length, nadd=rows.filter(r=>r.action==='אזור הוספה').length;
+    const n3=rows.filter(r=>r.level>=3).length, n2=rows.filter(r=>r.level===2).length, nadd=rows.filter(r=>r.action==='אזור הוספה'||(r.action||'').startsWith('הוספה הדרגתית')).length;
     h+=`<details class="blk sub2" open><summary><span class="bt" style="margin:0">${esc(an)} <span class="sub">· $${Math.round(tot).toLocaleString()} · ${rows.length} מניות · ${nadd} להוספה · ${n2} באזהרה · ${n3} לבחינה</span></span><span class="ex"></span></summary>`;
     h+=rows.map(p=>{const sig=(p.signals||[p.status||''])[0];
-      return `<details class="bi"><summary><b class="tk">${esc(p.t.replace('.TA',''))}${p.weight!=null?` <span class="sub num">${(p.weight*100).toFixed(0)}%</span>`:''}</b><span class="why"><span class="lvl${p.level}">${esc(p.action||LVL[p.level])}</span> · ${esc(sig)}</span><span class="ex">${toneChip(((D.news||{})[p.t]||{}).verdict)}</span></summary>
+      return `<details class="bi"><summary><b class="tk">${esc(p.t.replace('.TA',''))}${p.weight!=null?` <span class="sub num">${(p.weight*100).toFixed(0)}%</span>`:''}</b><span class="why"><span class="lvl${p.level}">${esc(p.action||LVL[p.level])}</span>${p.quality&&p.quality.ok?' 💎':''} · ${esc(sig)}</span><span class="ex">${toneChip(((D.news||{})[p.t]||{}).verdict)}</span></summary>
       <div class="bd">${p.price!=null?`<div class="sub num">מחיר ${px(p.price,p.cur)} · יום ${pct(p.r1d)} · ${p.ret==null?'':'מאז קנייה '+pct(p.ret)+' · '}שווי ${px(p.value,p.cur)} · שלב ${p.stage} · RS ${p.rs}${p.spec?' · ספקולטיבית':''}</div>
       <div class="sub num"><b>קו בחינה</b> ${px(p.review,p.cur)} (3% מתחת לממוצע 200 – סגירה מתחתיו = לבחון, לא מכירה אוטומטית)</div>
       ${p.value_ils?`<div class="sub num">בשקלים: ₪${Math.round(p.value_ils).toLocaleString()}${p.gain!=null?` · רווח צבור ${px(p.gain,p.cur)}${p.tax_est?` · מס משוער במכירה ${px(p.tax_est,p.cur)} (${Math.round(p.tax_rate*100)}%) · נטו ${px(p.gain-p.tax_est,p.cur)}`:' · בהפסד – מכירה מקזזת מס'}`:''}</div>`:''}`:''}
+      ${p.quality?`<div class="sub"><b>איכות העסק:</b> ${p.quality.ok?'💎 ':p.quality.ok===false?'⚠️ ':''}${esc((p.quality.why||[]).join(' · '))}</div>`:''}
+      ${p.sync?`<div style="margin:4px 0"><b>החלטה מסונכרנת:</b> ${esc(p.sync)}</div>`:''}
       <ul class="rs ${p.level>=2?'warn':'good'}">${(p.signals||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
       <div style="margin-top:8px"><b>מה נאמר</b></div>${newsHtml(p.t)}</div></details>`}).join('');
     h+=`</details>`;
