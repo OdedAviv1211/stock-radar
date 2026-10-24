@@ -100,6 +100,38 @@ def long_term(f, fund_score=None, mcap=None):
     return {"ok": False, "label": "מסחר לטווח קצר בלבד", "why": "חסר: " + " · ".join(missing), "missing": missing}
 
 
+def quality_check(i):
+    """בדיקת איכות פיננסית אחת לכל הדוח (תיק, איכות בהנחה, הפקדה): הכנסות, צמיחה, רווחיות, קופה נזילה.
+    מחזיר ok=True/False, או None כשאין נתונים."""
+    if not i or i.get("totalRevenue") is None and i.get("revenueGrowth") is None:
+        return {"ok": None, "why": ["אין נתונים פונדמנטליים"]}
+    rev, rg, pm = i.get("totalRevenue"), i.get("revenueGrowth"), i.get("profitMargins")
+    cash, debt, cr = i.get("totalCash"), i.get("totalDebt"), i.get("currentRatio")
+    good, bad = [], []
+    (good if rev and rev > 0 else bad).append("הכנסות")
+    (good if rg is not None and rg > 0 else bad).append(f"צמיחה {rg * 100:.0f}%" if rg is not None else "צמיחה")
+    (good if pm is not None and pm > 0 else bad).append(f"רווחיות {pm * 100:.0f}%" if pm is not None else "רווחיות")
+    liquid = (cash is not None and debt is not None and cash >= debt) or (cr is not None and cr >= 1.5)
+    (good if liquid else bad).append("קופה נזילה")
+    return {"ok": not bad, "good": good, "bad": bad,
+            "why": (["עומדת בכל תנאי האיכות: " + ", ".join(good)] if not bad else ["חסר: " + ", ".join(bad)])}
+
+
+def qd_score(x, i):
+    """דירוג 0–100 למניית איכות בהנחה: צמיחה 25, רווחיות 20, מאזן 15, תזרים 10, תמחור 15, תזמון 15."""
+    pts = {}
+    pts["צמיחה"] = 25 * min(max(x["rev_g"] or 0, 0), 1.0)
+    pts["רווחיות"] = 20 * min(max(x["margin"] or 0, 0), 0.4) / 0.4
+    cash, debt, cr = i.get("totalCash"), i.get("totalDebt"), i.get("currentRatio")
+    pts["מאזן"] = (10 if cash is not None and debt is not None and cash >= debt else 0) + (5 if cr is not None and cr >= 1.5 else 0)
+    pts["תזרים"] = 10 if (i.get("freeCashflow") or 0) > 0 else 0
+    pe = i.get("forwardPE")
+    pts["תמחור"] = 6 if pe is None or pe <= 0 else 15 if pe < 15 else 12 if pe < 25 else 8 if pe < 40 else 4 if pe < 60 else 2
+    pts["תזמון"] = (8 if x["rebound"] else 0) + (7 if x["above200"] else 0)
+    sc = round(sum(pts.values()))
+    return sc, ("A" if sc >= 75 else "B" if sc >= 60 else "C"), {k: round(v) for k, v in pts.items()}
+
+
 def exec_summary(rep):
     """קציר מנהלים: 5–7 שורות תחתונות, מהחשוב לפחות חשוב. כל שורה: {"k": כותרת, "t": טקסט, "lv": 0-3}."""
     out = []
@@ -111,7 +143,7 @@ def exec_summary(rep):
     pf = rep.get("portfolio", [])
     red = sorted({p["t"] for p in pf if (p.get("level") or 0) >= 3})
     warn = sorted({p["t"] for p in pf if (p.get("level") or 0) == 2})
-    add = sorted({p["t"] for p in pf if p.get("action") == "אזור הוספה"})
+    add = sorted({p["t"] for p in pf if p.get("action") == "אזור הוספה" or p.get("action", "").startswith("הוספה הדרגתית")})
     conc = sorted({f"{p['t']} {p['weight'] * 100:.0f}% ({(p.get('acct') or '').split(' – ')[0].replace('תיק ', '')})" for p in pf
                    if p.get("action", "").startswith("להחזיק – לא להוסיף") and p.get("weight") is not None})
     if pf:
@@ -130,6 +162,12 @@ def exec_summary(rep):
             parts.append(f"באזהרה: {', '.join(warn)}")
         out.append({"k": "התיקים שלי", "lv": 3 if red else 2 if (warn or conc) else 0,
                     "t": " · ".join(parts) or "אין שינוי – להחזיק"})
+        syn = []
+        for p_ in pf:
+            if p_.get("sync") and p_["t"] not in [z.split(":")[0] for z in syn]:
+                syn.append(f"{p_['t']}: {p_['sync']}")
+        if syn:
+            out.append({"k": "סנכרון איכות ↔ מגמה", "lv": 1, "t": " · ".join(syn[:5])})
     reg = rep.get("regime", [])
     if reg:
         mn = min((r.get("level") or 0) for r in reg if r.get("status") != "לא זמין") if any(r.get("status") != "לא זמין" for r in reg) else 0
@@ -149,15 +187,15 @@ def exec_summary(rep):
     Q = rep.get("quality_dips") or {}
     if Q.get("items"):
         it = Q["items"]
-        reb = [x["t"] for x in it if x["rebound"]]
-        txt = f"{len(it)} מניות רווחיות, צומחות ועם קופה נזילה ירדו 15%+ מהשיא (S&P 500: {Q['spy_dd'] * 100:+.0f}% מהשיא): " + \
-              ", ".join(f"{x['t']} {x['dd'] * 100:.0f}%" for x in it[:6])
-        if reb:
-            txt += f" · מתחילות להתאושש: {', '.join(reb[:4])}"
+        txt = f"{len(it)} מניות איכות ירדו 15%+ מהשיא (S&P 500: {Q['spy_dd'] * 100:+.0f}%). המובילות בדירוג: " + \
+              ", ".join(f"{x['t']} {x['grade']}{x['score']} ({x['dd'] * 100:.0f}%)" for x in it[:6])
+        buy_ = [x["t"] for x in it if x.get("verdict", "").endswith("מועמדת לקנייה הדרגתית")]
+        if buy_:
+            txt += f" · מועמדות לקנייה הדרגתית עכשיו: {', '.join(buy_[:4])}"
         trq = Q.get("track") or {}
         if trq.get("n"):
             txt += f" · מעקב: {trq['ex'] * 100:+.1f}% מול המדד ({trq['n']})"
-        out.append({"k": "איכות בהנחה", "lv": 1 if reb else 0, "t": txt})
+        out.append({"k": "איכות בהנחה", "lv": 1 if buy_ else 0, "t": txt})
     stp_all = [x for x in rep.get("pick_track", []) if x.get("alert") and "מתחת לסטופ המסחר" in x["alert"]]
     stp = [x["t"] for x in stp_all if x.get("held")]
     if stp:
@@ -199,6 +237,10 @@ def exec_summary(rep):
         todo.append(f"לבחון צמצום ב-{', '.join(red[:3])}")
     if add:
         todo.append(f"לשקול הוספה ב-{', '.join(add[:3])}")
+    qbuy = [x["t"] for x in ((rep.get("quality_dips") or {}).get("items") or [])
+            if x.get("verdict", "").endswith("מועמדת לקנייה הדרגתית") and not x.get("held")]
+    if qbuy:
+        todo.append(f"💎 לשקול קנייה הדרגתית (איכות בהנחה): {', '.join(qbuy[:3])}")
     if stp:
         todo.append("לממש פוזיציות מסחר מתחת לסטופ")
     out.insert(0, {"k": "מה לעשות היום", "lv": 3 if red else 1 if todo else 0,
@@ -653,6 +695,28 @@ def run(today=None):
             action = "להחזיק בזהירות"
         else:
             action = "להחזיק"
+        # ---- סנכרון: איכות פיננסית (העסק) מול מגמה (המחיר) – החלטה אחת ----
+        q = quality_check(infos.get(t))
+        sync = None
+        user_stop = bool(pz["stop"] and price <= pz["stop"])
+        over = weight is not None and weight > acc["max_weight"]
+        rebound = bool(f.get("sma20") and price > f["sma20"] and f["r5d"] > 0)
+        soon = x["earn"] is not None and x["earn"] <= config.EARNINGS_WARN_DAYS
+        if q["ok"] and action == "לבחון צמצום" and not user_stop:
+            action = "לאזן חלקית – איכותית במשקל יתר" if over else "להחזיק – איכותית בירידה, לא להוסיף עד היפוך"
+            sig = [((2 if l >= 3 else l), t2) for l, t2 in sig]
+            sig.append((2, "העסק חזק (" + ", ".join(q["good"]) + ") – הירידה היא במחיר, לא בעסק. לא מוכרים רק בגלל המגמה; "
+                           "מוסיפים כשחוזרת מעל ממוצע 20 עם שבוע חיובי, וחוזרים לבחון אם הדוח הבא מקלקל צמיחה/רווחיות"))
+            if f["dist_hi"] <= -0.5:
+                sig.append((2, f"ירידה חריגה ({f['dist_hi'] * 100:.0f}% מהשיא) – לבדוק בחדשות מה השתנה בעסק"))
+            sync = "המגמה שבורה אבל החברה איכותית → " + ("לאזן חלקית (משקל יתר), לא למכור הכל" if over else "להחזיק, לא להוסיף עד היפוך")
+        elif q["ok"] and action in ("להחזיק בזהירות", "להחזיק") and price < sma200 and rebound and not over and not spec and not soon:
+            action = "הוספה הדרגתית – איכותית שמתאוששת"
+            sig.append((0, "איכותית מתחת לממוצע 200 שחזרה מעל ממוצע 20 – הוספה במנות קטנות, סטופ מתחת לשפל האחרון"))
+            sync = "איכותית בהנחה שמתחילה להתאושש → הוספה הדרגתית"
+        elif q["ok"] is False and action == "לבחון צמצום":
+            sig.append((3, "גם העסק לא עומד בתנאי האיכות (" + ", ".join(q["bad"]) + ") – אין סיבה פונדמנטלית להחזיק דרך הירידה"))
+            sync = "גם המגמה וגם העסק חלשים → צמצום עקבי"
         if not sig:
             sig.append((0, "המגמה הארוכה תקינה – להחזיק"))
         lvl = max(l for l, _ in sig)
@@ -662,7 +726,7 @@ def run(today=None):
                         "value": value, "weight": weight, "spec": spec, "action": action, "score": x["score"],
                         "rs": x["rs"], "stage": f["stage"], "ext150": f["ext_sma150"], "earn": x["earn"],
                         "signals": [t2 for _, t2 in sorted(sig, key=lambda z: -z[0])], "level": lvl,
-                        "notes": pz["notes"], "acct": acc["label"],
+                        "notes": pz["notes"], "acct": acc["label"], "quality": q, "sync": sync, "dd": f["dist_hi"],
                         "cost": (buy * pz["shares"]) if buy and pz["shares"] else None,
                         "gain": (value - buy * pz["shares"]) if value and buy and pz["shares"] else None,
                         "tax_rate": config.GOAL["tax_corp"] if acc.get("type") == "company" else config.GOAL["tax_simple"],
@@ -784,36 +848,6 @@ def run(today=None):
                 x["my_horizon"] = (b_.get("horizon") or "").strip()
     except Exception as e:  # noqa
         log(f"purchases skipped: {e}")
-    # ---- תוכנית הפקדה חודשית: לאן לשים את ההפקדה הבאה ----
-    try:
-        plans = []
-        held_t = {r["t"] for r in pf_rows}
-        tree = [p_ for p_ in report.get("picks", []) + report.get("picks_ext", [])
-                if (p_.get("horizon") or {}).get("ok") and p_["t"] not in held_t and not p_["t"].endswith(".TA")]
-        for key, acc in config.ACCOUNTS.items():
-            amt_ils = config.GOAL["monthly_contrib_ils"] if acc["type"] == "company" else config.PERSONAL_PLAN["monthly_contrib_ils"]
-            rows_a = [r for r in pf_rows if r.get("notes") == key]
-            cands = [{"t": r["t"], "why": "בתיק, באזור הוספה", "price": r["price"]} for r in rows_a
-                     if r.get("action") == "אזור הוספה" and not r.get("spec")
-                     and (r.get("weight") or 0) < acc["max_weight"] and not r["t"].endswith(".TA")]
-            cands += [{"t": p_["t"], "why": "חדשה 🌳 מהרדאר", "price": p_["price"]} for p_ in tree]
-            k_ = max(1, min(3, int(amt_ils / fx // 600)))
-            budget = amt_ils / fx / k_
-            cands = ([c_ for c_ in cands if c_["price"] and c_["price"] <= budget] or cands)[:k_]
-            if not cands:
-                plans.append({"acct": acc["label"], "amount_ils": amt_ils, "items": [], "note": "אין היום מועמדת מתאימה – להשאיר במזומן או להוסיף ל-SPY"})
-                continue
-            per_usd = amt_ils / fx / len(cands)
-            items = []
-            for c_ in cands:
-                sh = int(per_usd // c_["price"]) if c_["price"] else 0
-                items.append({"t": c_["t"], "why": c_["why"], "usd": round(per_usd), "shares": sh,
-                              "note": "" if sh else "מחיר גבוה מהסכום – לצבור לחודש הבא"})
-            plans.append({"acct": acc["label"], "amount_ils": amt_ils, "items": items, "note": ""})
-        report["deposit_plan"] = plans
-    except Exception as e:  # noqa
-        log(f"deposit plan skipped: {e}")
-        report["deposit_plan"] = []
     # ---- מניות איכות שנפלו: חזקות פיננסית, ירדו 15%+ מהשיא – עם מעקב ----
     try:
         spy_dd = float(spy["Close"].iloc[-1] / spy["Close"].iloc[-252:].max() - 1)
@@ -821,13 +855,10 @@ def run(today=None):
         for t in qd_cand:
             i = infos.get(t) or {}
             f = feats[t]
-            rev, rg, pm = i.get("totalRevenue"), i.get("revenueGrowth"), i.get("profitMargins")
+            if not quality_check(i)["ok"]:
+                continue
+            rg, pm = i.get("revenueGrowth"), i.get("profitMargins")
             cash, debt, cr = i.get("totalCash"), i.get("totalDebt"), i.get("currentRatio")
-            if not (rev and rev > 0 and rg is not None and rg > 0 and pm is not None and pm > 0):
-                continue
-            liquid = (cash is not None and debt is not None and cash >= debt) or (cr is not None and cr >= 1.5)
-            if not liquid:
-                continue
             sec = meta[t].get("sector") or i.get("sector") or ""
             rebound = f["price"] > f["sma20"] and f["r5d"] > 0
             qd.append({"t": t, "name": meta[t].get("name") or i.get("shortName") or t, "sector": sec,
@@ -838,7 +869,26 @@ def run(today=None):
                        "vs_mkt": f["dist_hi"] - spy_dd, "above200": f["price"] > f["sma200"],
                        "state": "מתחילה להתאושש (מעל ממוצע 20, שבוע חיובי)" if rebound else "עדיין בירידה – לחכות לסימן היפוך",
                        "rebound": rebound, "sma200": f["sma200"]})
-        qd.sort(key=lambda x: (not x["tech"], -((x["rev_g"] or 0) + (x["margin"] or 0))))
+        # דירוג + סנכרון מול התיק: אותה החלטה בכל מקום בדוח
+        pf_by = {}
+        for r in pf_rows:
+            pf_by.setdefault(r["t"], []).append(r)
+        for x in qd:
+            x["score"], x["grade"], x["pts"] = qd_score(x, infos.get(x["t"]) or {})
+            held_ = pf_by.get(x["t"], [])
+            x["held"] = [{"acct": (r.get("acct") or "").split(" – ")[0], "w": r.get("weight"), "action": r.get("action")} for r in held_]
+            earn_ = (rows.get(x["t"]) or {}).get("earn")
+            if held_ and any(r.get("action", "").startswith(("להחזיק – לא להוסיף", "לאזן")) for r in held_):
+                x["verdict"] = "בתיק במשקל יתר – לא להוסיף, להחזיק"
+            elif earn_ is not None and earn_ <= config.EARNINGS_WARN_DAYS:
+                x["verdict"] = f"לחכות לדוח (בעוד {max(0, earn_)} ימים)"
+            elif x["rebound"] and x["grade"] in ("A", "B"):
+                x["verdict"] = ("בתיק – " if held_ else "") + "מועמדת לקנייה הדרגתית"
+            elif x["rebound"]:
+                x["verdict"] = ("בתיק – " if held_ else "") + "מתאוששת אבל ציון נמוך – רק סכום קטן"
+            else:
+                x["verdict"] = ("בתיק – להחזיק, " if held_ else "") + "רשימת המתנה: לא לקנות בזמן נפילה"
+        qd.sort(key=lambda x: -x["score"])
         # מעקב: מתי נכנסה לרשימה, במחיר כמה, ומה קרה מאז
         qpath = os.path.join(ROOT, "data", "dips_history.csv")
         qh = list(csv.DictReader(open(qpath, encoding="utf-8"))) if os.path.exists(qpath) else []
@@ -877,6 +927,39 @@ def run(today=None):
     except Exception as e:  # noqa
         log(f"quality dips skipped: {e}")
         report["quality_dips"] = None
+    # ---- תוכנית הפקדה חודשית: לאן לשים את ההפקדה הבאה ----
+    try:
+        plans = []
+        held_t = {r["t"] for r in pf_rows}
+        tree = [p_ for p_ in report.get("picks", []) + report.get("picks_ext", [])
+                if (p_.get("horizon") or {}).get("ok") and p_["t"] not in held_t and not p_["t"].endswith(".TA")]
+        for key, acc in config.ACCOUNTS.items():
+            amt_ils = config.GOAL["monthly_contrib_ils"] if acc["type"] == "company" else config.PERSONAL_PLAN["monthly_contrib_ils"]
+            rows_a = [r for r in pf_rows if r.get("notes") == key]
+            cands = [{"t": r["t"], "why": "בתיק, באזור הוספה", "price": r["price"]} for r in rows_a
+                     if (r.get("action") == "אזור הוספה" or r.get("action", "").startswith("הוספה הדרגתית")) and not r.get("spec")
+                     and (r.get("weight") or 0) < acc["max_weight"] and not r["t"].endswith(".TA")]
+            qd_ok = [x for x in ((report.get("quality_dips") or {}).get("items") or [])
+                     if x["verdict"].endswith("מועמדת לקנייה הדרגתית") and not x["held"]][:2]
+            cands += [{"t": x["t"], "why": f"💎 איכות בהנחה (ציון {x['score']}, {x['dd'] * 100:.0f}% מהשיא, מתאוששת)", "price": x["price"]} for x in qd_ok]
+            cands += [{"t": p_["t"], "why": "חדשה 🌳 מהרדאר", "price": p_["price"]} for p_ in tree if p_["t"] not in [c["t"] for c in cands]]
+            k_ = max(1, min(3, int(amt_ils / fx // 600)))
+            budget = amt_ils / fx / k_
+            cands = ([c_ for c_ in cands if c_["price"] and c_["price"] <= budget] or cands)[:k_]
+            if not cands:
+                plans.append({"acct": acc["label"], "amount_ils": amt_ils, "items": [], "note": "אין היום מועמדת מתאימה – להשאיר במזומן או להוסיף ל-SPY"})
+                continue
+            per_usd = amt_ils / fx / len(cands)
+            items = []
+            for c_ in cands:
+                sh = int(per_usd // c_["price"]) if c_["price"] else 0
+                items.append({"t": c_["t"], "why": c_["why"], "usd": round(per_usd), "shares": sh,
+                              "note": "" if sh else "מחיר גבוה מהסכום – לצבור לחודש הבא"})
+            plans.append({"acct": acc["label"], "amount_ils": amt_ils, "items": items, "note": ""})
+        report["deposit_plan"] = plans
+    except Exception as e:  # noqa
+        log(f"deposit plan skipped: {e}")
+        report["deposit_plan"] = []
     # ---- קציר מנהלים: שורות תחתונות ----
     try:
         report["exec"] = exec_summary(report)
