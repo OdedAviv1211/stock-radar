@@ -503,6 +503,25 @@ function qualityDipsHtml(){
   return h;
 }
 
+// ---- תיק דמה (Alpaca Paper) ----
+function paperHtml(){
+  const P=D.paper;
+  if(!P) return `<div class="bt">🧪 תיק דמה – עוד לא מחובר</div><div class="sub">כדי להפעיל: לפתוח חשבון Paper ב-Alpaca, ליצור API Keys, ולשמור אותם במאגר GitHub כ-Secrets בשם ALPACA_KEY_ID ו-ALPACA_SECRET_KEY. מהריצה הבאה הרדאר יקנה וימכור בכסף וירטואלי לפי ההמלצות וימדוד מול S&amp;P 500.</div>`;
+  const usd=v=>'$'+Math.round(v).toLocaleString();
+  const side={buy:'🟢 קנייה',sell:'🔴 מכירה',cancel:'⚪ ביטול'};
+  let h=`<div class="bt">🧪 תיק דמה (Alpaca Paper – כסף וירטואלי)</div>
+  <div class="kpis" style="margin:6px 0"><div class="card"><div class="sub">שווי</div><b class="num">${usd(P.equity)}</b></div>
+  <div class="card"><div class="sub">מאז ${esc(P.start)}</div><b class="num">${pct(P.ret)}</b></div>
+  <div class="card"><div class="sub">S&amp;P 500 באותה תקופה</div><b class="num">${pct(P.spy_ret)}</b></div>
+  <div class="card"><div class="sub">מזומן</div><b class="num">${usd(P.cash)}</b></div></div>`;
+  h+=`<div class="bt">פעולות היום</div>`+((P.today||[]).length?`<ul class="rs">${P.today.map(d=>`<li>${side[d.side]||d.side} <b class="tk">${esc(d.t)}</b>${d.qty?` ×${d.qty}`:''}${d.limit?` · עד $${d.limit}`:''}${d.stop?` · סטופ $${d.stop}`:''} – ${esc(d.why||'')}</li>`).join('')}</ul>`:'<div class="sub">אין פעולות היום.</div>');
+  if((P.pending||[]).length) h+=`<div class="sub">ממתינות לביצוע בפתיחת המסחר: ${P.pending.map(esc).join(', ')}</div>`;
+  h+=`<div class="bt">פוזיציות</div>`+((P.positions||[]).length?`<div class="tw" style="max-height:none"><table><thead><tr><th>מניה</th><th class="n">כמות</th><th class="n">כניסה</th><th class="n">מחיר</th><th class="n">שווי</th><th class="n">רווח</th></tr></thead><tbody>${P.positions.map(x=>`<tr><td class="tk">${esc(x.t)}</td><td class="n num">${x.qty}</td><td class="n num">${x.entry.toFixed(2)}</td><td class="n num">${x.price.toFixed(2)}</td><td class="n num">${usd(x.value)}</td><td class="n">${pct(x.pl)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="sub">אין עדיין פוזיציות.</div>');
+  const R=P.rules||{};
+  h+=`<div class="sub" style="margin-top:6px"><b>כללים:</b> כל קנייה ${Math.round((R.pos_pct||0)*100)}% מהתיק · עד ${R.max_new} קניות ביום · עד ${R.max_pos} מניות · סדר עדיפות: איכות בהנחה שמתאוששת ← תוכנית ההפקדה ← 🌳 מהטופ · פקודת לימיט עד 1% מעל הסגירה · סטופ אוטומטי (איכות: ${Math.round((R.quality_stop||0)*100)}% מתחת לכניסה; טופ 10: סטופ התוכנית) · מכירה כשהרדאר מסמן יציאה או כשמניה מאבדת את תנאי האיכות.</div>`;
+  return h;
+}
+
 // ---- method ----
 function renderMethod(){
   const w=D.weights;
@@ -682,13 +701,13 @@ function renderBrief(){
   if(off.length) h+=`<div class="bt">דיווחים רשמיים ל-SEC השבוע</div><ul class="nws">${off.slice(0,10).map(({t,i})=>`<li><b class="tk">${esc(t)}</b> <a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.title)}</a> <span class="src">· ${esc(i.date)}</span></li>`).join('')}</ul>`;
   if(!hl.length&&!off.length) h+=`<div class="sub">אין פרסומים מהותיים היום.</div>`;
   if(D.research_url) h+=`<div class="bt">אמירות פוליטיות ומאקרו</div><div style="font-size:14px">טראמפ, הבית הלבן, הפד, מאסק ומנכ"לי שרשרת ה-AI – ההשפעה על סקטורים ומניות: <a href="${esc(D.research_url)}" target="_blank" rel="noopener">חדר המחקר ←</a></div>`;
-  h+=`</details></div>`;
+  h+=`</details></div><div class="tabp" data-tab="paper">`+paperHtml()+`</div>`;
   $('#briefBox').innerHTML=h;
   briefTab(briefCur());
 }
 const BTABS=[['ex','סיכום',['ex']],['pf','התיקים שלי',['pf','#portfolio']],['watch','רשימת מעקב',['#watch']],['day','ניתוח יומי',['day','#market']],
  ['top','טופ 10',['#top10']],['qd','💎 איכות בהנחה',['qd']],['trk','מעקב וביצועים',['trk','#track','#backtest']],['il','ישראל',['#israel']],
- ['heat','מפת חום',['#heatmap']],['th','קטגוריות וענפים',['#themes','#groups','#caps']],['scan','סריקה מלאה',['#scan']],['res','מחקר',['res']],['method','שיטה',['#method']],['all','הכל',[]]];
+ ['heat','מפת חום',['#heatmap']],['th','קטגוריות וענפים',['#themes','#groups','#caps']],['scan','סריקה מלאה',['#scan']],['paper','🧪 תיק דמה',['paper']],['res','מחקר',['res']],['method','שיטה',['#method']],['all','הכל',[]]];
 function briefCur(){try{const k=localStorage.getItem('briefTab');return BTABS.some(x=>x[0]===k)?k:'ex'}catch(e){return 'ex'}}
 function briefTab(k){
   const T=BTABS.find(x=>x[0]===k)||BTABS[0], show=T[2], all=k==='all';
