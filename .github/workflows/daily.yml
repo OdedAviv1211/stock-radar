@@ -30,6 +30,12 @@ jobs:
       - name: Run screener
         run: python run.py
 
+      - name: Paper trading (Alpaca, virtual money)
+        env:
+          ALPACA_KEY_ID: ${{ secrets.ALPACA_KEY_ID }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: python paper_trade.py
+
       - name: Publish dashboard
         run: |
           git config user.name "stock-radar-bot"
