@@ -141,6 +141,12 @@ def build_short(rep, url):
     for x in sel:
         t = x["t"] if len(x["t"]) <= 160 else x["t"][:157] + "…"
         lines.append(f"{dot.get(x['lv'], '•')} <b>{e(x['k'])}:</b> {e(t)}")
+    pp = rep.get("paper")
+    if pp and pp.get("ret") is not None:
+        acts = ", ".join(("קנייה " if d["side"] == "buy" else "מכירה " if d["side"] == "sell" else "ביטול ") + d["t"] for d in pp.get("today", []))
+        lines.append(f"🧪 <b>תיק דמה:</b> {pp['ret'] * 100:+.1f}% מאז {e(pp['start'])}"
+                     + (f" (S&P 500: {pp['spy_ret'] * 100:+.1f}%)" if pp.get("spy_ret") is not None else "")
+                     + (f" · היום: {e(acts)}" if acts else ""))
     picks = rep.get("picks") or []
     if picks:
         lines.append("🏆 <b>טופ 5:</b> " + " · ".join(e(p["t"].replace(".TA", "")) for p in picks[:5]))
