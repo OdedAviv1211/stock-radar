@@ -4,7 +4,56 @@
  "start_spy": 768.71997,
  "accounts": {
   "C": {
-   "long": {},
+   "long": {
+    "AMZN": {
+     "qty": 9.0,
+     "cost": 2427.84
+    },
+    "GOOGL": {
+     "qty": 6.0,
+     "cost": 1753.1999999999998
+    },
+    "NVDA": {
+     "qty": 102.0,
+     "cost": 20809.02
+    },
+    "PLTR": {
+     "qty": 9.0,
+     "cost": 1538.3700000000001
+    },
+    "RGTI": {
+     "qty": 105.0,
+     "cost": 1186.5
+    },
+    "IBM": {
+     "qty": 6.0,
+     "cost": 1532.46
+    },
+    "SPY": {
+     "qty": 11.0,
+     "cost": 8456.049998
+    },
+    "KLAC": {
+     "qty": 16.0,
+     "cost": 2409.98
+    },
+    "COKE": {
+     "qty": 17.0,
+     "cost": 3475.31
+    },
+    "NVTS": {
+     "qty": 80.0,
+     "cost": 718.4000000000001
+    },
+    "AVGO": {
+     "qty": 17.0,
+     "cost": 5583.250007
+    },
+    "IREN": {
+     "qty": 25.0,
+     "cost": 544.71
+    }
+   },
    "short": {},
    "cash": 4019.321621621622,
    "short_cash": 5887.93,
@@ -14,7 +63,48 @@
    "deposits": []
   },
   "P": {
-   "long": {},
+   "long": {
+    "AMZN": {
+     "qty": 1.0,
+     "cost": 269.78
+    },
+    "GOOGL": {
+     "qty": 10.0,
+     "cost": 2921.8
+    },
+    "TSLA": {
+     "qty": 1.0,
+     "cost": 389.99
+    },
+    "NVDA": {
+     "qty": 35.0,
+     "cost": 7138.95
+    },
+    "BZAI": {
+     "qty": 450.0,
+     "cost": 99.315
+    },
+    "PLTR": {
+     "qty": 28.0,
+     "cost": 4785.789988
+    },
+    "RGTI": {
+     "qty": 2.0,
+     "cost": 22.6
+    },
+    "KLAC": {
+     "qty": 4.0,
+     "cost": 602.52
+    },
+    "IREN": {
+     "qty": 4.0,
+     "cost": 87.13
+    },
+    "AMPG": {
+     "qty": 27.0,
+     "cost": 68.58
+    }
+   },
    "short": {},
    "cash": 857.0175675675677,
    "short_cash": 1723.38,
@@ -24,13 +114,35 @@
    "deposits": []
   }
  },
- "seen": [],
+ "seen": [
+  "b8836548-dc99-4ae0-81fe-062eec4b9170",
+  "5a56fb47-136a-4abf-8829-3b6341637d73",
+  "1870df7f-57d0-4f10-8473-868a83178522",
+  "e00c5e0d-da72-46fa-acd3-4a5ff9e082af",
+  "54a381c4-493c-41cc-8a20-448d17b01771",
+  "b2950131-eaae-4e8d-b49b-3dd52088a59b",
+  "5ebb1068-6f4b-4f3d-9bfe-6ce761cc03e9",
+  "af84a596-f870-4d20-a4da-a881cf962b7f",
+  "c9fa3141-d8d9-41f8-b615-433331dea84d",
+  "2a564bb7-6eff-4ea7-a098-5b4a315dbab3",
+  "7852bb47-80d5-4dda-a82a-ef1883259317",
+  "c79c7a60-814c-4e64-8d6f-5e6161730fdf",
+  "3d04501d-9aad-4664-a100-f1aff9e37538",
+  "2f306d35-1538-40ff-929e-e97cb1e45278",
+  "d73f66bb-c08a-471b-9b05-6b8d5e3ecc21",
+  "3cce6a42-1e93-4b01-895f-05e777a067a6",
+  "9507fe08-d5b5-4dc3-b439-a833520e75bf",
+  "e3d56e3f-deff-487d-9a60-b81b95f02c84",
+  "9e8ea502-901f-4b30-9816-add406cf7659",
+  "3d39c751-81e6-4e87-98e5-13cd3e8a08f1",
+  "5e8c3c48-aefa-44aa-a2fc-920c1ecfcf1f",
+  "16fdd737-43de-4442-a8b6-0a3c7834e11d"
+ ],
  "plans": {},
  "sell_watch": {},
  "last_deposit": null,
  "closed": [],
- "last_sync": "2026-11-04T18:15:10.649924+00:00",
- "just_init": true,
- "mirror_pending": true,
+ "last_sync": "2026-11-04T18:31:25.954348+00:00",
+ "mirror_pending": false,
  "regime": "מגמה עולה"
 }
