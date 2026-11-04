@@ -1,0 +1,36 @@
+{
+ "version": 2,
+ "start": "2026-11-04",
+ "start_spy": 768.71997,
+ "accounts": {
+  "C": {
+   "long": {},
+   "short": {},
+   "cash": 4019.321621621622,
+   "short_cash": 5887.93,
+   "realized": 0,
+   "contrib": 64767.26633162162,
+   "bench_shares": 84.25339377045404,
+   "deposits": []
+  },
+  "P": {
+   "long": {},
+   "short": {},
+   "cash": 857.0175675675677,
+   "short_cash": 1723.38,
+   "realized": 0,
+   "contrib": 18957.134347567568,
+   "bench_shares": 24.660650285392702,
+   "deposits": []
+  }
+ },
+ "seen": [],
+ "plans": {},
+ "sell_watch": {},
+ "last_deposit": null,
+ "closed": [],
+ "last_sync": "2026-11-04T18:15:10.649924+00:00",
+ "just_init": true,
+ "mirror_pending": true,
+ "regime": "מגמה עולה"
+}
