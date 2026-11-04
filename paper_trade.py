@@ -311,6 +311,28 @@ def nightly(api, rep, book, actions, events):
     stage = {r["t"]: r.get("stage") for r in rep.get("table", []) or []}
     earn = {r["t"]: r.get("earn") for g in ("table", "picks", "picks_ext", "portfolio") for r in rep.get(g, []) or []}
 
+    # 0) השלמת העתקה: פקודות שנכשלו ביום ההעתקה (למשל בגלל פקודת מכירה פתוחה על אותה מניה) – עד 3 ניסיונות
+    if not book.get("just_init") and book.get("mirror_tries", 0) < 3 and not book.get("mirror_done"):
+        missing = 0
+        for code, A in ACCTS.items():
+            a = book["accounts"][code]
+            for p in rep.get("portfolio", []):
+                if p.get("notes") != A["key"] or not p.get("shares") or p["t"].endswith(".TA"):
+                    continue
+                have = a["long"].get(p["t"], {}).get("qty", 0) + sum(o["qty"] for o in oo if o["acct"] == code and o["t"] == p["t"] and o["kind"] == "M")
+                diff = int(p["shares"]) - int(have)
+                if diff > 0:
+                    missing += 1
+                    try:
+                        api.order({"symbol": p["t"], "qty": str(diff), "side": "buy", "type": "market", "time_in_force": "day",
+                                   "client_order_id": cid(code, "M", p["t"])}, force=True)
+                        actions.append({"acct": code, "sleeve": "ארוך", "t": p["t"], "side": "קנייה", "qty": diff, "why": "השלמת העתקת התיק"})
+                    except Exception as e:  # noqa
+                        log(f"mirror retry {p['t']}: {e}")
+        book["mirror_tries"] = book.get("mirror_tries", 0) + 1
+        if missing == 0:
+            book["mirror_done"] = True
+
     # 2) מכירות בחלק הארוך: העסק נשבר + המגמה שבורה, 5 ימי מסחר ברצף
     sw = book.setdefault("sell_watch", {})
     for code, a in book["accounts"].items():
