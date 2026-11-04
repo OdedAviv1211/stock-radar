@@ -117,6 +117,29 @@ def quality_check(i):
             "why": (["עומדת בכל תנאי האיכות: " + ", ".join(good)] if not bad else ["חסר: " + ", ".join(bad)])}
 
 
+def short_info(i):
+    """עניין שורט (שיטה 26): אחוז מהמניות הצפות, שינוי מול החודש הקודם, ימים לכיסוי. הנתון מ-FINRA, פעמיים בחודש, באיחור של כשבועיים."""
+    if not i:
+        return None
+    pct_, now_, prev_, dtc = i.get("shortPercentOfFloat"), i.get("sharesShort"), i.get("sharesShortPriorMonth"), i.get("shortRatio")
+    if pct_ is None and now_ is None:
+        return None
+    chg = (now_ / prev_ - 1) if now_ and prev_ else None
+    asof = datetime.utcfromtimestamp(i["dateShortInterest"]).strftime("%Y-%m-%d") if i.get("dateShortInterest") else None
+    if pct_ is not None and chg is not None:
+        if chg >= 0.20 and pct_ >= 0.10:
+            vote, txt = -1, "שורטיסטים מגדילים הימור נגד המניה"
+        elif chg <= -0.10:
+            vote, txt = 1, "השורטיסטים סוגרים פוזיציות"
+        elif chg >= 0.20:
+            vote, txt = -1, "השורט עלה בחדות"
+        else:
+            vote, txt = 0, "ללא שינוי מהותי"
+    else:
+        vote, txt = 0, "אין מספיק נתונים"
+    return {"pct": pct_, "chg": chg, "dtc": dtc, "asof": asof, "vote": vote, "txt": txt}
+
+
 def qd_score(x, i):
     """דירוג 0–100 למניית איכות בהנחה: צמיחה 25, רווחיות 20, מאזן 15, תזרים 10, תמחור 15, תזמון 15."""
     pts = {}
@@ -128,7 +151,10 @@ def qd_score(x, i):
     pe = i.get("forwardPE")
     pts["תמחור"] = 6 if pe is None or pe <= 0 else 15 if pe < 15 else 12 if pe < 25 else 8 if pe < 40 else 4 if pe < 60 else 2
     pts["תזמון"] = (8 if x["rebound"] else 0) + (7 if x["above200"] else 0)
-    sc = round(sum(pts.values()))
+    si = short_info(i) or {}
+    if si.get("chg") is not None and si.get("pct") is not None:
+        pts["שורטים"] = 5 if (si["chg"] < 0 and si["pct"] < 0.05) else -5 if (si["chg"] > 0.20 and si["pct"] > 0.10) else 0
+    sc = max(0, min(100, round(sum(pts.values()))))
     return sc, ("A" if sc >= 75 else "B" if sc >= 60 else "C"), {k: round(v) for k, v in pts.items()}
 
 
@@ -875,6 +901,9 @@ def run(today=None):
             pf_by.setdefault(r["t"], []).append(r)
         for x in qd:
             x["score"], x["grade"], x["pts"] = qd_score(x, infos.get(x["t"]) or {})
+            x["si"] = short_info(infos.get(x["t"]))
+            si_ = x["si"] or {}
+            x["squeeze"] = bool(si_.get("pct") and si_["pct"] > 0.20 and (si_.get("dtc") or 0) > 5 and x["rebound"])
             held_ = pf_by.get(x["t"], [])
             x["held"] = [{"acct": (r.get("acct") or "").split(" – ")[0], "w": r.get("weight"), "action": r.get("action")} for r in held_]
             earn_ = (rows.get(x["t"]) or {}).get("earn")
@@ -960,6 +989,14 @@ def run(today=None):
     except Exception as e:  # noqa
         log(f"deposit plan skipped: {e}")
         report["deposit_plan"] = []
+    # ---- עניין שורט לכל מניה שמוצגת (שיטה 26) ----
+    try:
+        for grp in ("picks", "picks_ext", "portfolio"):
+            for r_ in report.get(grp, []) or []:
+                if r_.get("t") in infos and "si" not in r_:
+                    r_["si"] = short_info(infos.get(r_["t"]))
+    except Exception as e:  # noqa
+        log(f"short interest skipped: {e}")
     # ---- קציר מנהלים: שורות תחתונות ----
     try:
         report["exec"] = exec_summary(report)
