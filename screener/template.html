@@ -481,6 +481,13 @@ function pickTrackHtml(){
 }
 
 
+// ---- עניין שורט (שיטה 26) ----
+function siHtml(si){
+  if(!si||si.pct==null) return '';
+  const ic=si.vote>0?'🟢':si.vote<0?'⚠️':'⚪';
+  return `<div class="sub num">${ic} <b>שורט:</b> ${(si.pct*100).toFixed(1)}% מהמניות הצפות${si.chg!=null?` (${si.chg>=0?'+':''}${(si.chg*100).toFixed(0)}% מהחודש הקודם)`:''}${si.dtc!=null?` · ${(+si.dtc).toFixed(1)} ימים לכיסוי`:''} – ${esc(si.txt||'')}${si.asof?` <span class="muted">(נכון ל-${esc(si.asof)})</span>`:''}</div>`;
+}
+
 // ---- מניות איכות שנפלו ----
 function qualityDipsHtml(){
   const Q=D.quality_dips; if(!Q||!Q.items) return '';
@@ -490,12 +497,13 @@ function qualityDipsHtml(){
   <div class="sub" style="margin-bottom:4px"><b>איך לקרוא:</b> זו רשימת קנייה פוטנציאלית לטווח ארוך, לא איתות כניסה. כניסה עדיפה כשמופיע 🔄 (חזרה מעל ממוצע 20) – לא בזמן נפילה.</div>`;
   if(!Q.items.length) return h+'<div class="sub">אין היום מניות שעומדות בכל התנאים.</div>';
   const gc=g=>g==='A'?'var(--up)':g==='B'?'var(--accent)':'var(--muted)';
-  h+=`<div class="sub" style="margin-bottom:4px"><b>דירוג 0–100:</b> צמיחה 25 · רווחיות 20 · מאזן 15 · תזרים 10 · תמחור 15 · תזמון (התאוששות ומעל ממוצע 200) 15. A ≥75, B ≥60. <b>אותה בדיקת איכות</b> משמשת גם את "התיקים שלי" – כך שמניה איכותית בתיק לא תקבל "לצמצם" רק בגלל ירידה.</div>`;
-  h+=Q.items.map((x,ix)=>`<details class="bi"><summary><b class="tk">${ix+1}. ${esc(x.t)} <span class="num" style="color:${gc(x.grade)}">${x.grade||''}${x.score!=null?x.score:''}</span></b><span class="why">${x.tech?'💻 ':''}<b class="num down">${(x.dd*100).toFixed(0)}%</b> מהשיא · צמיחה ${pct(x.rev_g,0)} · רווחיות ${pct(x.margin,0)}${x.rebound?' · <b style="color:var(--up)">🔄 מתאוששת</b>':''}${(x.held||[]).length?' · 💼 בתיק':''}<br><b>${esc(x.verdict||'')}</b></span><span class="ex"></span></summary>
+  h+=`<div class="sub" style="margin-bottom:4px"><b>דירוג 0–100:</b> צמיחה 25 · רווחיות 20 · מאזן 15 · תזרים 10 · תמחור 15 · תזמון (התאוששות ומעל ממוצע 200) 15 · שורטים ±5 (יורד ונמוך = +5, עולה בחדות ומעל 10% = ‎-5). A ≥75, B ≥60. <b>אותה בדיקת איכות</b> משמשת גם את "התיקים שלי" – כך שמניה איכותית בתיק לא תקבל "לצמצם" רק בגלל ירידה.</div>`;
+  h+=Q.items.map((x,ix)=>`<details class="bi"><summary><b class="tk">${ix+1}. ${esc(x.t)} <span class="num" style="color:${gc(x.grade)}">${x.grade||''}${x.score!=null?x.score:''}</span></b><span class="why">${x.tech?'💻 ':''}<b class="num down">${(x.dd*100).toFixed(0)}%</b> מהשיא · צמיחה ${pct(x.rev_g,0)} · רווחיות ${pct(x.margin,0)}${x.rebound?' · <b style="color:var(--up)">🔄 מתאוששת</b>':''}${(x.held||[]).length?' · 💼 בתיק':''}${x.si&&x.si.vote<0?' · ⚠️ שורט עולה':''}${x.squeeze?' · ⚡ פוטנציאל סחיטת שורט':''}<br><b>${esc(x.verdict||'')}</b></span><span class="ex"></span></summary>
    <div class="bd"><div class="sub">${esc(x.name)} · ${esc(x.sector)} · שווי ${m(x.mcap)}</div>
    <div class="sub num">מחיר ${x.price.toFixed(2)} · שיא 52 שבועות ${x.hi52.toFixed(2)} · חודש ${pct(x.r21)} · ${x.dd<Q.spy_dd?`נפלה ${((Q.spy_dd-x.dd)*100).toFixed(0)} נק' יותר מהשוק`:'נפלה פחות מהשוק'}</div>
    <div class="sub num">מזומן נטו ${m(x.net_cash)} · יחס שוטף ${x.cr!=null?x.cr.toFixed(1):'—'} · תזרים חופשי ${m(x.fcf)} · מכפיל עתידי ${x.fpe!=null?x.fpe.toFixed(0):'—'} · ${x.above200?'מעל ממוצע 200':'מתחת לממוצע 200'}</div>
    <div><b>מצב:</b> ${esc(x.state)}</div>
+   ${siHtml(x.si)}
    ${x.pts?`<div class="sub num">פירוט הציון: ${Object.entries(x.pts).map(([k,v])=>`${k} ${v}`).join(' · ')}</div>`:''}
    ${(x.held||[]).length?`<div class="sub">💼 בתיק: ${x.held.map(hh=>`${esc(hh.acct)}${hh.w!=null?' '+(hh.w*100).toFixed(0)+'%':''} – ${esc(hh.action||'')}`).join(' · ')}</div>`:''}
    <div class="sub num">ברשימה מאז ${esc(x.since)} (מחיר ${x.entry.toFixed(2)}) · מאז: ${pct(x.ret_since)} · S&amp;P 500 באותה תקופה: ${pct(x.spy_since)}</div></div></details>`).join('');
@@ -503,22 +511,29 @@ function qualityDipsHtml(){
   return h;
 }
 
-// ---- תיק דמה (Alpaca Paper) ----
+// ---- תיק דמה (Alpaca Paper) – גרסה 2: שני תיקים × ארוך / קצר / מזומן ----
 function paperHtml(){
   const P=D.paper;
-  if(!P) return `<div class="bt">🧪 תיק דמה – עוד לא מחובר</div><div class="sub">כדי להפעיל: לפתוח חשבון Paper ב-Alpaca, ליצור API Keys, ולשמור אותם במאגר GitHub כ-Secrets בשם ALPACA_KEY_ID ו-ALPACA_SECRET_KEY. מהריצה הבאה הרדאר יקנה וימכור בכסף וירטואלי לפי ההמלצות וימדוד מול S&amp;P 500.</div>`;
-  const usd=v=>'$'+Math.round(v).toLocaleString();
-  const side={buy:'🟢 קנייה',sell:'🔴 מכירה',cancel:'⚪ ביטול'};
-  let h=`<div class="bt">🧪 תיק דמה (Alpaca Paper – כסף וירטואלי)</div>
-  <div class="kpis" style="margin:6px 0"><div class="card"><div class="sub">שווי</div><b class="num">${usd(P.equity)}</b></div>
-  <div class="card"><div class="sub">מאז ${esc(P.start)}</div><b class="num">${pct(P.ret)}</b></div>
-  <div class="card"><div class="sub">S&amp;P 500 באותה תקופה</div><b class="num">${pct(P.spy_ret)}</b></div>
-  <div class="card"><div class="sub">מזומן</div><b class="num">${usd(P.cash)}</b></div></div>`;
-  h+=`<div class="bt">פעולות היום</div>`+((P.today||[]).length?`<ul class="rs">${P.today.map(d=>`<li>${side[d.side]||d.side} <b class="tk">${esc(d.t)}</b>${d.qty?` ×${d.qty}`:''}${d.limit?` · עד $${d.limit}`:''}${d.stop?` · סטופ $${d.stop}`:''} – ${esc(d.why||'')}</li>`).join('')}</ul>`:'<div class="sub">אין פעולות היום.</div>');
-  if((P.pending||[]).length) h+=`<div class="sub">ממתינות לביצוע בפתיחת המסחר: ${P.pending.map(esc).join(', ')}</div>`;
-  h+=`<div class="bt">פוזיציות</div>`+((P.positions||[]).length?`<div class="tw" style="max-height:none"><table><thead><tr><th>מניה</th><th class="n">כמות</th><th class="n">כניסה</th><th class="n">מחיר</th><th class="n">שווי</th><th class="n">רווח</th></tr></thead><tbody>${P.positions.map(x=>`<tr><td class="tk">${esc(x.t)}</td><td class="n num">${x.qty}</td><td class="n num">${x.entry.toFixed(2)}</td><td class="n num">${x.price.toFixed(2)}</td><td class="n num">${usd(x.value)}</td><td class="n">${pct(x.pl)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="sub">אין עדיין פוזיציות.</div>');
-  const R=P.rules||{};
-  h+=`<div class="sub" style="margin-top:6px"><b>כללים:</b> כל קנייה ${Math.round((R.pos_pct||0)*100)}% מהתיק · עד ${R.max_new} קניות ביום · עד ${R.max_pos} מניות · סדר עדיפות: איכות בהנחה שמתאוששת ← תוכנית ההפקדה ← 🌳 מהטופ · פקודת לימיט עד 1% מעל הסגירה · סטופ אוטומטי (איכות: ${Math.round((R.quality_stop||0)*100)}% מתחת לכניסה; טופ 10: סטופ התוכנית) · מכירה כשהרדאר מסמן יציאה או כשמניה מאבדת את תנאי האיכות.</div>`;
+  if(!P) return `<div class="bt">🧪 תיק דמה – עוד לא מחובר</div><div class="sub">צריך Secrets בשם ALPACA_KEY_ID ו-ALPACA_SECRET_KEY במאגר.</div>`;
+  const usd=v=>v==null?'—':'$'+Math.round(v).toLocaleString();
+  const nm={C:'חברה',P:'אישי'};
+  if(P.v!==2){return `<div class="bt">🧪 תיק דמה</div><div class="sub">שווי ${usd(P.equity)} · מעבר לגרסה 2 בריצה הבאה.</div>`;}
+  const bar=(lab,v,t)=>{const d=v-t,c=Math.abs(d)<=0.05?'var(--up)':'#b26a00';return `<div style="display:flex;align-items:center;gap:6px;font-size:13px;margin:2px 0"><span style="flex:0 0 64px">${lab}</span><div style="flex:1;height:10px;background:var(--line);border-radius:5px;position:relative"><div style="width:${Math.min(100,v*100)}%;height:100%;background:${c};border-radius:5px"></div><div style="position:absolute;top:-2px;bottom:-2px;inset-inline-start:${t*100}%;border-inline-start:2px solid var(--ink)"></div></div><span class="num" style="flex:0 0 112px;font-size:12px">${Math.round(v*100)}% (יעד ${Math.round(t*100)}%)</span></div>`};
+  let h=`<div class="bt">🧪 תיק דמה מנוהל – Alpaca Paper (כסף וירטואלי)</div>
+  <div class="sub">מאז ${esc(P.start)} · מצב השוק: <b>${esc(P.regime||'')}</b> · מאגר להפקדות עתידיות: ${usd(P.reserve)} · פועל לפי "תוכנית ניהול התיק – גרסה 2"</div>`;
+  (P.accounts||[]).forEach(a=>{
+    h+=`<details class="blk sub2" open><summary><span class="bt" style="margin:0">${esc(a.name)} · ${usd(a.value)} ${a.pending?'<span class="sub">(ממתין לביצוע ההעתקה)</span>':`· <b>${pct(a.ret)}</b> <span class="sub">מול "תיק עצל" ב-S&amp;P 500: ${pct(a.bench_ret)}</span>`}</span><span class="ex"></span></summary>`;
+    if(a.alloc&&a.targets) h+=bar('ארוך',a.alloc.long||0,a.targets.long)+bar('קצר',a.alloc.short||0,a.targets.short)+bar('מזומן',a.alloc.cash||0,a.targets.cash);
+    h+=`<div class="sub num">הופקד: ${usd(a.contrib)} · מזומן ${usd(a.cash)} · מזומן לעסקאות קצרות ${usd(a.short_cash)} · רווח ממומש ${usd(a.realized)}</div>`;
+    if((a.short||[]).length) h+=`<div class="bt">⚡ עסקאות קצרות</div><div class="tw" style="max-height:none"><table><thead><tr><th>מניה</th><th class="n">כמות</th><th class="n">כניסה</th><th class="n">מחיר</th><th class="n">סטופ</th><th class="n">יעד</th><th class="n">רווח</th></tr></thead><tbody>${a.short.map(x=>`<tr><td class="tk">${esc(x.t)}${x.half?' <span class="sub">(חצי מומש)</span>':''}</td><td class="n num">${x.qty}</td><td class="n num">${x.entry.toFixed(2)}</td><td class="n num">${x.price!=null?x.price.toFixed(2):'—'}</td><td class="n num" style="color:var(--down)">${x.stop.toFixed(2)}</td><td class="n num">${x.target.toFixed(2)}</td><td class="n">${pct(x.pl)}</td></tr>`).join('')}</tbody></table></div>`;
+    if((a.long||[]).length) h+=`<details class="bi"><summary><b>🌳 ארוך טווח (${a.long.length} מניות)</b><span class="why">משקל · רווח מאז הכניסה${a.long.some(x=>x.watch)?' · ⏳ = בספירה לקראת מכירה':''}</span><span class="ex"></span></summary><div class="bd"><div class="tw" style="max-height:none"><table><thead><tr><th>מניה</th><th class="n">כמות</th><th class="n">שווי</th><th class="n">משקל</th><th class="n">רווח</th></tr></thead><tbody>${a.long.map(x=>`<tr><td class="tk">${esc(x.t)}${x.watch?` <span class="sub">⏳ ${x.watch}/5</span>`:''}</td><td class="n num">${x.qty}</td><td class="n num">${usd(x.value)}</td><td class="n">${x.w!=null?Math.round(x.w*100)+'%':'—'}</td><td class="n">${pct(x.pl)}</td></tr>`).join('')}</tbody></table></div></div></details>`;
+    h+=`</details>`;
+  });
+  const T=(P.today||[]);
+  h+=`<div class="bt">פעולות היום</div>`+(T.length?`<ul class="rs">${T.map(d=>`<li>${nm[d.acct]?`<span class="sub">${nm[d.acct]}${d.sleeve?' · '+esc(d.sleeve):''}</span> `:''}<b>${esc(d.side)}</b> ${d.t?`<b class="tk">${esc(d.t)}</b>`:''}${d.qty!==''&&d.qty!=null?` ×${d.qty}`:''}${d.price?` · $${d.price}`:''} – ${esc(d.why||'')}</li>`).join('')}</ul>`:'<div class="sub">אין פעולות היום.</div>');
+  const E=(P.events||[]); if(E.length) h+=`<div class="bt">ביצועים מאז הריצה הקודמת</div><ul class="rs">${E.map(e=>`<li><span class="sub">${nm[e.acct]||''} · ${esc(e.sleeve||'')}</span> ${esc(e.side)} <b class="tk">${esc(e.t)}</b>${e.qty?` ×${e.qty}`:''}${e.price?` @ $${(+e.price).toFixed(2)}`:''}</li>`).join('')}</ul>`;
+  const S=P.short_stats||{}; if(S.n) h+=`<div class="sub">עסקאות קצרות שנסגרו: ${S.n} · מנצחות ${Math.round(S.win*100)}% · רווח ממוצע ${pct(S.avg_win)} · הפסד ממוצע ${pct(S.avg_loss)}</div>`;
+  h+=`<div class="sub" style="margin-top:6px"><b>הכללים בקצרה:</b> ארוך טווח – קונים רק מהפקדה לפי תוכנית ההפקדה (עד 3 מניות, לא מעל התקרה, לא לפני דוח); מוכרים רק כשגם העסק וגם המגמה חלשים 5 ימי מסחר ברצף; משקל יתר – לא מוכרים, מאזנים דרך ההפקדות. קצר טווח – טופ 10 עם ציון 85+, שלב 2, RS 80+, פריצה של 3%+ ב-3 ימים עם מחזור ×1.5 או חזרה לממוצע 20; סטופ 8%, סטופ למחיר הכניסה ב-+8%, חצי ביעד 3R ואז סטופ נגרר 8%, יציאה בשתי סגירות מתחת לממוצע 20 או אחרי 15 ימים בלי +5%. החלטות בלילה, מעקב וסטופים כל שעה.</div>`;
   return h;
 }
 
@@ -668,6 +683,7 @@ function renderBrief(){
       <div class="sub num"><b>קו בחינה</b> ${px(p.review,p.cur)} (3% מתחת לממוצע 200 – סגירה מתחתיו = לבחון, לא מכירה אוטומטית)</div>
       ${p.value_ils?`<div class="sub num">בשקלים: ₪${Math.round(p.value_ils).toLocaleString()}${p.gain!=null?` · רווח צבור ${px(p.gain,p.cur)}${p.tax_est?` · מס משוער במכירה ${px(p.tax_est,p.cur)} (${Math.round(p.tax_rate*100)}%) · נטו ${px(p.gain-p.tax_est,p.cur)}`:' · בהפסד – מכירה מקזזת מס'}`:''}</div>`:''}`:''}
       ${p.quality?`<div class="sub"><b>איכות העסק:</b> ${p.quality.ok?'💎 ':p.quality.ok===false?'⚠️ ':''}${esc((p.quality.why||[]).join(' · '))}</div>`:''}
+      ${siHtml(p.si)}
       ${p.sync?`<div style="margin:4px 0"><b>החלטה מסונכרנת:</b> ${esc(p.sync)}</div>`:''}
       <ul class="rs ${p.level>=2?'warn':'good'}">${(p.signals||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
       <div style="margin-top:8px"><b>מה נאמר</b></div>${newsHtml(p.t)}</div></details>`}).join('');
@@ -688,6 +704,7 @@ function renderBrief(){
   h+=`<div class="bt">10 המניות של היום</div>`+D.picks.map(p=>`<details class="bi"><summary><b class="tk">${p.rank}. ${esc(p.t.replace('.TA',''))}</b><span class="why">${p.horizon?`<b style="color:${p.horizon.ok?'var(--up)':'var(--muted)'}">${p.horizon.ok?'🌳':(p.horizon.label==='מגמה ארוכה בבנייה'?'🌱':'⚡')} ${esc(p.horizon.label)}</b> · `:''}${esc(p.theme)} · ציון <b class="num">${Math.round(p.score)}</b> · RS ${p.rs}${p.plan?` · <b style="color:var(--down)">סטופ ${p.plan.stop.toFixed(2)}</b>`:''}${p.earn!=null&&p.earn<=10?' · ⚠ דוח בעוד '+Math.max(0,p.earn)+' ימים':''}</span><span class="ex">${toneChip(((D.news||{})[p.t]||{}).verdict)}</span></summary>
      <div class="bd"><div class="sub">${esc(p.name||'')}</div><ul class="rs good">${(p.good||[]).slice(0,5).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>${(p.warn||[]).length?`<ul class="rs warn">${p.warn.slice(0,3).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
      ${p.plan?`<div class="sub num">כניסה ${p.plan.entry.toFixed(2)} · סטופ ${p.plan.stop.toFixed(2)} · ${esc(p.plan.target_src)} ${p.plan.target1.toFixed(2)}</div>`:''}
+     ${siHtml(p.si)}
      <div style="margin-top:8px"><b>מה נאמר</b></div>${newsHtml(p.t)}</div></details>`).join('');
   if(D.israel&&D.israel.length) h+=`<div class="sub" style="margin-top:8px">🇮🇱 ת"א: ${D.israel.map(p=>esc(p.t.replace('.TA',''))).join(' · ')}</div>`;
   if((D.picks_ext||[]).length) h+=`<details class="bi"><summary><b>הרחבה: מקומות ${D.picks_ext[0].rank}–${D.picks_ext[D.picks_ext.length-1].rank}</b><span class="why">מניות נוספות עם ציון גבוה, לפי הסדר</span><span class="ex"></span></summary><div class="bd">${D.picks_ext.map(p=>`<div style="padding:3px 0"><b class="tk">${p.rank}. ${esc(p.t)}</b> · ${p.horizon?(p.horizon.ok?'🌳':(p.horizon.label==='מגמה ארוכה בבנייה'?'🌱':'⚡')):''} ${esc(p.theme)} · ציון <b class="num">${Math.round(p.score)}</b>${p.plan?` · <b style="color:var(--down)">סטופ ${p.plan.stop.toFixed(2)}</b>`:''}</div>`).join('')}</div></details>`;
