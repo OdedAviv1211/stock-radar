@@ -65,6 +65,11 @@ def fake_fund(tickers, max_age_days=5):
                 "returnOnEquity": float(rng.normal(.18, .12)), "forwardPE": float(rng.uniform(10, 60)),
                 "trailingAnnualDividendYield": float(max(0, rng.normal(.01, .02))), "targetMeanPrice": None,
                 "shortPercentOfFloat": float(rng.uniform(0, .2)),
+                "totalRevenue": float(rng.uniform(1e8, 5e10)), "profitMargins": float(rng.normal(.08, .12)),
+                "totalCash": float(rng.uniform(1e8, 2e10)), "totalDebt": float(rng.uniform(0, 2e10)),
+                "currentRatio": float(rng.uniform(.6, 3)), "freeCashflow": float(rng.normal(1e9, 2e9)),
+                "sharesShort": float(rng.uniform(1e6, 5e7)), "sharesShortPriorMonth": float(rng.uniform(1e6, 5e7)),
+                "shortRatio": float(rng.uniform(.5, 8)), "dateShortInterest": time.time() - 15 * 86400,
                 "earningsTimestampStart": time.time() + float(rng.uniform(-20, 80)) * 86400} for t in tickers}
 
 
