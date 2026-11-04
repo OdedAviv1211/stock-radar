@@ -142,11 +142,13 @@ def build_short(rep, url):
         t = x["t"] if len(x["t"]) <= 160 else x["t"][:157] + "…"
         lines.append(f"{dot.get(x['lv'], '•')} <b>{e(x['k'])}:</b> {e(t)}")
     pp = rep.get("paper")
-    if pp and pp.get("ret") is not None:
-        acts = ", ".join(("קנייה " if d["side"] == "buy" else "מכירה " if d["side"] == "sell" else "ביטול ") + d["t"] for d in pp.get("today", []))
-        lines.append(f"🧪 <b>תיק דמה:</b> {pp['ret'] * 100:+.1f}% מאז {e(pp['start'])}"
-                     + (f" (S&P 500: {pp['spy_ret'] * 100:+.1f}%)" if pp.get("spy_ret") is not None else "")
-                     + (f" · היום: {e(acts)}" if acts else ""))
+    if pp and pp.get("v") == 2:
+        parts = []
+        for ac in pp.get("accounts", []):
+            parts.append(f"{ac['name']} " + ("ממתין להעתקה" if ac.get("ret") is None else
+                         f"{ac['ret'] * 100:+.1f}% (S&P: {(ac.get('bench_ret') or 0) * 100:+.1f}%)"))
+        acts = [f"{d['side']} {d['t']}" for d in pp.get("today", []) if d.get("t") and d.get("side") in ("קנייה", "מכירה", "מימוש חצי")]
+        lines.append("🧪 <b>תיק דמה:</b> " + " · ".join(parts) + (f" · היום: {e(', '.join(acts[:6]))}" if acts else ""))
     picks = rep.get("picks") or []
     if picks:
         lines.append("🏆 <b>טופ 5:</b> " + " · ".join(e(p["t"].replace(".TA", "")) for p in picks[:5]))
