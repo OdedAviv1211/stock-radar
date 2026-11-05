@@ -563,6 +563,104 @@ def monitor(api, book, actions, events):
 
 
 # ---------- דוח ----------
+def next_month(month):
+    y, m = map(int, month.split("-"))
+    return f"{y + 1}-01" if m == 12 else f"{y}-{m + 1:02d}"
+
+
+def money(v):
+    return f"${v:,.0f}" if v >= 0 else f"-${-v:,.0f}"
+
+
+def analyze(code, a, acct, prev, orders, reg_txt, today):
+    """ניתוח מצב התיק לאור התוצאות – שורות קצרות ללשונית "מצב התיק". k: good / warn / info / next."""
+    A, out = ACCTS[code], []
+    add = lambda k, t: out.append({"k": k, "t": t})
+    if acct.get("pending"):
+        add("info", "ממתין להשלמת העתקת התיק – הניתוח יתחיל אחרי הביצוע")
+        return out, "ממתין להעתקה"
+    ret, bench = acct.get("ret"), acct.get("bench_ret")
+    diff = (ret - bench) if ret is not None and bench is not None else None
+    longs = acct.get("long") or []
+    pl = {x["t"]: x["value"] - a["long"][x["t"]]["cost"] for x in longs if x["t"] in a["long"]}
+    losers = sorted([(t, v) for t, v in pl.items() if v < 0], key=lambda x: x[1])
+    gainers = sorted([(t, v) for t, v in pl.items() if v > 0], key=lambda x: -x[1])
+    # 1) תשואה מול המדד
+    if diff is not None:
+        add("good" if diff >= 0 else "warn",
+            f"תשואה מאז ההעתקה {ret:+.1%} מול \"תיק עצל\" ב-S&P 500 {bench:+.1%} – פער {diff * 100:+.1f} נקודות")
+    if prev and prev.get("contrib") and acct.get("contrib"):
+        d = acct["value"] / acct["contrib"] - prev["value"] / prev["contrib"]
+        db = (acct["bench"] / acct["contrib"] - prev["bench"] / prev["contrib"]) if prev.get("bench") and acct.get("bench") else None
+        add("info", f"שינוי מאז הדוח הקודם ({prev['date']}): {d:+.1%}" + (f" · המדד {db:+.1%}" if db is not None else ""))
+    # 2) מי תורם ומי מכביד
+    if gainers or losers:
+        g = " · ".join(f"{t} {money(v)}" for t, v in gainers[:3]) or "אין"
+        l = " · ".join(f"{t} {money(v)}" for t, v in losers[:3]) or "אין"
+        add("info", f"תורמות: {g} | מכבידות: {l}")
+    deep = [x for x in longs if x.get("pl") is not None and x["pl"] <= -0.10]
+    if deep:
+        sw = [x["t"] for x in deep if x.get("watch")]
+        add("warn", f"{len(deep)} מניות בהפסד של יותר מ-10% מאז הכניסה ({', '.join(x['t'] for x in deep)}; הפסד יחד {money(sum(pl.get(x['t'], 0) for x in deep))})"
+            + (f" – מהן {len(sw)} כבר בספירה למכירה" if sw else " – אף אחת לא בספירה למכירה: המגמה או העסק עדיין עומדים בתנאים"))
+    # 3) ריכוזיות
+    over = [x for x in longs if x.get("w") is not None and x["w"] >= A["cap"]]
+    if over:
+        add("warn", "מעל תקרת המשקל " + f"{A['cap']:.0%}: " + " · ".join(f"{x['t']} {x['w']:.0%}" for x in over)
+            + " – לפי התוכנית לא מוכרים, מאזנים דרך ההפקדות (לא קונים אותן עוד)")
+    # 4) הקצאה מול היעד
+    al, tg = acct.get("alloc") or {}, A["targets"]
+    dev = {k: al.get(k, 0) - tg[k] for k in ("long", "short", "cash")}
+    nm = {"long": "ארוך", "short": "קצר", "cash": "מזומן"}
+    txt = " · ".join(f"{nm[k]} {al.get(k, 0):.0%}/{tg[k]:.0%}" for k in ("long", "short", "cash"))
+    bad = [k for k, v in dev.items() if abs(v) > R["band"]]
+    if bad:
+        add("warn", f"ההקצאה חורגת מהרצועה (±{R['band']:.0%}) ב{'חלק ה' + nm[bad[0]] if len(bad) == 1 else 'כמה חלקים'}: {txt} – ההפקדות הבאות מכוונות לסגור את הפער")
+    else:
+        add("good", f"ההקצאה בתוך הרצועה: {txt} (בפועל/יעד)")
+    # 5) ספירה למכירה
+    watch = [x for x in longs if x.get("watch")]
+    for x in sorted(watch, key=lambda x: -x["watch"]):
+        left = R["long_confirm_days"] - x["watch"]
+        add("warn", f"⏳ {x['t']}: {x['watch']}/{R['long_confirm_days']} ימי אישור – גם העסק וגם המגמה חלשים. "
+            + (f"עוד {left} ימי מסחר ברצף ומכירה אוטומטית בפתיחה" if left > 0 else "פקודת מכירה נשלחת בריצה הבאה")
+            + f" (הפסד נוכחי {x['pl']:+.1%}, שווי {money(x['value'])})")
+    # 6) פקודות פתוחות
+    for o in orders:
+        if o["acct"] != code:
+            continue
+        age = o.get("age", 0)
+        add("info", f"פקודה פתוחה: {o['side']} {o['t']} ×{o['qty']:g}" + (f" בלימיט {o['limit']}" if o.get("limit") else "")
+            + f" · גיל {age} ימים" + (f" – תבוטל אוטומטית אחרי {R['stale_days']} ימים אם לא תתבצע" if o["side"] == "קנייה" and o["type"] == "limit" else ""))
+    # 7) חלק קצר
+    shorts = acct.get("short") or []
+    if shorts:
+        add("info", f"{len(shorts)} עסקאות קצרות פתוחות: " + " · ".join(f"{x['t']} {x['pl']:+.1%} (סטופ {x['stop']})" for x in shorts))
+    else:
+        slots = 0 if "יורדת" in (reg_txt or "") else (R["short_slots"] // 2 if "תיקון" in (reg_txt or "") else R["short_slots"])
+        add("info", "אין עסקאות קצרות פתוחות. " + (f"במצב שוק \"{reg_txt}\" מותרות עד {slots} עסקאות" + (" בחצי גודל" if slots and slots < R["short_slots"] else "")
+                                                   if slots else f"במצב שוק \"{reg_txt}\" אין כניסות חדשות"))
+    if a.get("realized"):
+        add("info", f"רווח ממומש מצטבר: {money(a['realized'])}")
+    # 8) הבא בתור
+    month = today[:7]
+    nxt = next_month(month)
+    if (a.get("deposits") or [{}])[-1].get("date", "")[:7] == month:
+        add("next", f"הפקדה הבאה: יום המסחר הראשון של {nxt} – ₪{A['deposit_ils']:,} לפי תוכנית ההפקדה שתופיע אז בדוח")
+    else:
+        add("next", f"הפקדת {month} (₪{A['deposit_ils']:,}) טרם בוצעה – תתבצע בריצת הלילה הבאה")
+    # כותרת
+    if diff is None:
+        head = "אין עדיין השוואה למדד"
+    elif diff < -0.01:
+        head = f"התיק מפגר אחרי המדד ב-{-diff * 100:.1f} נקודות" + (f"; עיקר ההפסד ב-{', '.join(t for t, _ in losers[:3])}" if losers else "")
+    elif diff > 0.01:
+        head = f"התיק מקדים את המדד ב-{diff * 100:.1f} נקודות" + (f"; עיקר התרומה מ-{', '.join(t for t, _ in gainers[:3])}" if gainers else "")
+    else:
+        head = "התיק צמוד למדד"
+    return out, head
+
+
 def summary(api, rep, book, actions, events):
     pos = {p["symbol"]: float(p["current_price"]) for p in api.get("/positions")}
     px = {**prices_from(rep), **pos}
@@ -590,8 +688,38 @@ def summary(api, rep, book, actions, events):
                       "long": longs, "short": shorts, "deposits": a["deposits"][-3:]})
     closed = book.get("closed", [])
     wins = [c for c in closed if c["ret"] > 0]
+    today = rep["asof"]
+    # פקודות פתוחות (לדוח בלבד)
+    orders = []
+    try:
+        side_nm, kind_nm = {"buy": "קנייה", "sell": "מכירה"}, {"L": "ארוך", "M": "ארוך", "LS": "ארוך", "S": "קצר", "SS": "קצר", "SX": "סטופ"}
+        for o in api.get("/orders", status="open", limit=500):
+            info = parse_cid(o.get("client_order_id"))
+            if not info:
+                continue
+            age = (now() - datetime.fromisoformat(o["created_at"].replace("Z", "+00:00"))).days
+            orders.append({"acct": info["acct"], "t": info["t"], "sleeve": kind_nm.get(info["kind"], ""), "side": side_nm.get(o["side"], o["side"]),
+                           "type": o["type"], "qty": float(o["qty"] or 0), "limit": float(o["limit_price"]) if o.get("limit_price") else None,
+                           "stop": float(o["stop_price"]) if o.get("stop_price") else None, "created": o["created_at"][:10], "age": age})
+    except Exception as e:  # noqa
+        log(f"open orders for report: {e}")
+    # היסטוריה יומית (רשומה אחת לכל תאריך מסחר) + ניתוח
+    hist = [h for h in book.get("history", []) if h["date"] != today]
+    hist.append({"date": today, "equity": eq, "accts": {x["code"]: {"value": x["value"], "contrib": x["contrib"], "bench": x["bench"]} for x in accts}})
+    book["history"] = hist[-400:]
+    prev_rec = hist[-2] if len(hist) >= 2 else None
+    analysis = {}
+    for x in accts:
+        prev = dict(prev_rec["accts"].get(x["code"], {}), date=prev_rec["date"]) if prev_rec and prev_rec["accts"].get(x["code"]) else None
+        try:
+            items, head = analyze(x["code"], book["accounts"][x["code"]], x, prev, orders, book.get("regime"), today)
+        except Exception as e:  # noqa
+            log(f"analyze {x['code']}: {e}")
+            items, head = [], ""
+        analysis[x["code"]] = {"head": head, "items": items}
     rep["paper"] = {"v": 2, "start": book["start"], "regime": book.get("regime"), "equity": eq, "reserve": eq - used,
                     "accounts": accts, "today": actions, "events": events[-20:], "rules": R,
+                    "orders": orders, "history": book["history"], "analysis": analysis, "asof": today,
                     "short_stats": {"n": len(closed), "win": len(wins) / len(closed) if closed else None,
                                     "avg_win": sum(c["ret"] for c in wins) / len(wins) if wins else None,
                                     "avg_loss": (sum(c["ret"] for c in closed if c["ret"] <= 0) / max(1, len(closed) - len(wins))) if closed else None,
@@ -657,6 +785,7 @@ def main():
         telegram(events, actions)
     else:
         summary(api, rep, book, actions, events)
+        save_book(book)                          # ההיסטוריה היומית נשמרת בספר
         render(rep)
     log(f"done · actions {len(actions)} · events {len(events)}")
 

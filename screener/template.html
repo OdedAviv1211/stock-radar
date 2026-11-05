@@ -606,6 +606,54 @@ function paperHtml(){
   return h;
 }
 
+// ---- מצב התיק – עדכון יומי וניתוח לאור התוצאות (תיק הדמה המנוהל) ----
+function statusHtml(){
+  const P=D.paper;
+  const usd=v=>v==null?'—':(v<0?'-$':'$')+Math.round(Math.abs(v)).toLocaleString();
+  if(!P||P.v!==2) return `<div class="bt">📊 מצב התיק</div><div class="sub">הלשונית מתמלאת מתיק הדמה המנוהל. צריך Secrets בשם ALPACA_KEY_ID ו-ALPACA_SECRET_KEY במאגר.</div>`;
+  const AN=P.analysis||{}, H=P.history||[], O=P.orders||[];
+  const ic={good:'✓',warn:'⚠',info:'ℹ',next:'➜'}, col={good:'var(--up)',warn:'var(--warn,#b26a00)',info:'var(--muted)',next:'var(--accent)'};
+  const days=H.length>1?Math.round((new Date(H[H.length-1].date)-new Date(H[0].date))/864e5):0;
+  let h=`<div class="bt">📊 מצב התיק – עדכון יומי וניתוח לאור התוצאות</div>
+  <div class="sub">נכון ל-${esc(P.asof||'')} · מאז ${esc(P.start)}${days?` (${days===1?'יום אחד':days+' ימים'})`:''} · מצב השוק: <b>${esc(P.regime||'')}</b> · הניתוח נגזר מכללי "תוכנית ניהול התיק – גרסה 2" ומהתוצאות בפועל. לא ייעוץ – ההחלטות שלך.</div>`;
+  // KPI
+  h+=`<div class="kpis" style="margin:8px 0">`;
+  (P.accounts||[]).forEach(a=>{h+=`<div class="card kpi"><span>${esc(a.name)}</span><b class="num">${usd(a.value)}</b><span>${a.pending?'ממתין להעתקה':`${pct(a.ret)} · מדד ${pct(a.bench_ret)}`}</span></div>`;});
+  h+=`<div class="card kpi"><span>שווי החשבון ב-Alpaca</span><b class="num">${usd(P.equity)}</b><span>מאגר להפקדות: ${usd(P.reserve)}</span></div></div>`;
+  // גרף תשואה מצטברת מול המדד
+  const curve=(code)=>{
+    const pts=H.filter(x=>x.accts&&x.accts[code]&&x.accts[code].contrib).map(x=>({d:x.date,r:x.accts[code].value/x.accts[code].contrib-1,b:x.accts[code].bench!=null?x.accts[code].bench/x.accts[code].contrib-1:null}));
+    if(pts.length<2) return `<div class="sub">הגרף יצטבר מיום ליום (כרגע ${pts.length} נקודה).</div>`;
+    const W=320,Hh=90,Pd=6,vals=pts.flatMap(p=>[p.r,p.b]).filter(v=>v!=null),mn=Math.min(0,...vals),mx=Math.max(0,...vals);
+    const X=i=>Pd+i/(pts.length-1)*(W-2*Pd), Y=v=>Hh-Pd-(v-mn)/(mx-mn||1)*(Hh-2*Pd);
+    const path=k=>{let d='',pen=false;pts.forEach((p,i)=>{if(p[k]==null){pen=false;return}d+=(pen?'L':'M')+X(i).toFixed(1)+' '+Y(p[k]).toFixed(1);pen=true});return d};
+    const last=pts[pts.length-1];
+    return `<svg viewBox="0 0 ${W} ${Hh}" style="width:100%;max-width:420px;height:90px;display:block" role="img" aria-label="תשואה מצטברת מול המדד">
+      <line x1="${Pd}" x2="${W-Pd}" y1="${Y(0).toFixed(1)}" y2="${Y(0).toFixed(1)}" stroke="var(--line)" stroke-width="1"/>
+      <path d="${path('b')}" fill="none" stroke="var(--muted)" stroke-width="1.4" stroke-dasharray="4 3"/>
+      <path d="${path('r')}" fill="none" stroke="${last.r>=(last.b??0)?'var(--up)':'var(--down)'}" stroke-width="2"/></svg>
+      <div class="sub num" style="direction:rtl">${esc(pts[0].d)} ← ${esc(last.d)} · קו מלא = התיק · מקווקו = "תיק עצל" S&amp;P 500</div>`;
+  };
+  (P.accounts||[]).forEach(a=>{
+    const an=AN[a.code]||{items:[]};
+    h+=`<details class="blk sub2" open><summary><span class="bt" style="margin:0">${esc(a.name)} <span class="sub">· ${esc(an.head||'')}</span></span><span class="ex"></span></summary>`;
+    h+=`<div class="two"><div>${curve(a.code)}</div><div>`;
+    h+=(an.items||[]).map(x=>`<div style="display:flex;gap:8px;padding:4px 0;border-top:1px solid var(--line);font-size:13.5px"><span style="flex:0 0 16px;color:${col[x.k]||'var(--muted)'};font-weight:700">${ic[x.k]||'·'}</span><div>${esc(x.t)}</div></div>`).join('')||'<div class="sub">אין עדיין ניתוח – יופיע אחרי ריצת הלילה הבאה.</div>';
+    h+=`</div></div>`;
+    // טבלת פוזיציות לפי תרומה לרווח/הפסד
+    const L=(a.long||[]).slice().map(x=>({...x,plusd:x.pl!=null?x.value-x.value/(1+x.pl):null})).sort((x,y)=>(x.plusd??0)-(y.plusd??0));
+    if(L.length) h+=`<details class="bi"><summary><b>🌳 ארוך טווח לפי תרומה לתוצאה (${L.length})</b><span class="why">מההפסד הגדול לרווח הגדול · ⏳ = בספירה למכירה</span><span class="ex"></span></summary><div class="bd"><div class="tw" style="max-height:none"><table><thead><tr><th>מניה</th><th class="n">משקל</th><th class="n">שווי</th><th class="n">רווח/הפסד $</th><th class="n">%</th></tr></thead><tbody>${L.map(x=>`<tr><td class="tk">${esc(x.t)}${x.watch?` <span class="sub">⏳ ${x.watch}/5</span>`:''}</td><td class="n">${x.w!=null?Math.round(x.w*100)+'%':'—'}</td><td class="n num">${usd(x.value)}</td><td class="n num" style="color:${(x.plusd||0)>=0?'var(--up)':'var(--down)'}">${usd(x.plusd)}</td><td class="n">${pct(x.pl)}</td></tr>`).join('')}</tbody></table></div></div></details>`;
+    if((a.short||[]).length) h+=`<div class="sub">⚡ עסקאות קצרות פתוחות: ${a.short.map(x=>`<b class="tk">${esc(x.t)}</b> ${pct(x.pl)}`).join(' · ')}</div>`;
+    h+=`</details>`;
+  });
+  if(O.length) h+=`<div class="bt">פקודות פתוחות ב-Alpaca</div><div class="tw" style="max-height:none"><table><thead><tr><th>תיק</th><th>מניה</th><th>פעולה</th><th class="n">כמות</th><th class="n">לימיט / סטופ</th><th>נוצרה</th><th class="n">גיל (ימים)</th></tr></thead><tbody>${O.map(o=>`<tr><td>${esc({C:'חברה',P:'אישי'}[o.acct]||o.acct)}</td><td class="tk">${esc(o.t)}</td><td>${esc(o.side)} · ${esc(o.sleeve||'')}</td><td class="n num">${o.qty}</td><td class="n num">${o.limit!=null?o.limit:o.stop!=null?o.stop:'—'}</td><td class="num">${esc(o.created)}</td><td class="n num">${o.age}</td></tr>`).join('')}</tbody></table></div>`;
+  else h+=`<div class="sub" style="margin-top:6px">אין פקודות פתוחות ב-Alpaca.</div>`;
+  const T=(P.today||[]); if(T.length) h+=`<div class="bt">מה המערכת עשתה היום</div><ul class="rs">${T.map(d=>`<li><b>${esc(d.side)}</b> ${d.t?`<b class="tk">${esc(d.t)}</b>`:''}${d.qty!==''&&d.qty!=null?` ×${d.qty}`:''} – ${esc(d.why||'')}</li>`).join('')}</ul>`;
+  const S=P.short_stats||{}; if(S.n) h+=`<div class="sub">עסקאות קצרות שנסגרו: ${S.n} · מנצחות ${Math.round(S.win*100)}% · רווח ממוצע ${pct(S.avg_win)} · הפסד ממוצע ${pct(S.avg_loss)}</div>`;
+  h+=`<div class="sub" style="margin-top:8px"><b>איך לקרוא:</b> ✓ עומד בתוכנית · ⚠ דורש תשומת לב (התוכנית כבר מגדירה מה קורה) · ℹ מידע · ➜ השלב הבא. הפירוט המלא של הפוזיציות וההקצאה – בלשונית 🧪 תיק דמה; הכללים – בקובץ PLAN_V2.md במאגר.</div>`;
+  return h;
+}
+
 // ---- method ----
 function renderMethod(){
   const w=D.weights;
@@ -789,13 +837,13 @@ function renderBrief(){
   if(off.length) h+=`<div class="bt">דיווחים רשמיים ל-SEC השבוע</div><ul class="nws">${off.slice(0,10).map(({t,i})=>`<li><b class="tk">${esc(t)}</b> <a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.title)}</a> <span class="src">· ${esc(i.date)}</span></li>`).join('')}</ul>`;
   if(!hl.length&&!off.length) h+=`<div class="sub">אין פרסומים מהותיים היום.</div>`;
   if(D.research_url) h+=`<div class="bt">אמירות פוליטיות ומאקרו</div><div style="font-size:14px">טראמפ, הבית הלבן, הפד, מאסק ומנכ"לי שרשרת ה-AI – ההשפעה על סקטורים ומניות: <a href="${esc(D.research_url)}" target="_blank" rel="noopener">חדר המחקר ←</a></div>`;
-  h+=`</details></div><div class="tabp" data-tab="paper">`+paperHtml()+`</div><div class="tabp" data-tab="gl">`+glossaryHtml()+`</div>`;
+  h+=`</details></div><div class="tabp" data-tab="st">`+statusHtml()+`</div><div class="tabp" data-tab="paper">`+paperHtml()+`</div><div class="tabp" data-tab="gl">`+glossaryHtml()+`</div>`;
   $('#briefBox').innerHTML=h;
   briefTab(briefCur());
 }
 const BTABS=[['ex','סיכום',['ex']],['pf','התיקים שלי',['pf','#portfolio']],['watch','רשימת מעקב',['#watch']],['day','ניתוח יומי',['day','#market']],
  ['top','טופ 10',['#top10']],['qd','💎 איכות בהנחה',['qd']],['trk','מעקב וביצועים',['trk','#track','#backtest']],['il','ישראל',['#israel']],
- ['heat','מפת חום',['#heatmap']],['th','קטגוריות וענפים',['#themes','#groups','#caps']],['scan','סריקה מלאה',['#scan']],['paper','🧪 תיק דמה',['paper']],['gl','📖 מקרא',['gl']],['res','מחקר',['res']],['method','שיטה',['#method']],['all','הכל',[]]];
+ ['heat','מפת חום',['#heatmap']],['th','קטגוריות וענפים',['#themes','#groups','#caps']],['scan','סריקה מלאה',['#scan']],['st','📊 מצב התיק',['st']],['paper','🧪 תיק דמה',['paper']],['gl','📖 מקרא',['gl']],['res','מחקר',['res']],['method','שיטה',['#method']],['all','הכל',[]]];
 function briefCur(){try{const k=localStorage.getItem('briefTab');return BTABS.some(x=>x[0]===k)?k:'ex'}catch(e){return 'ex'}}
 function briefTab(k){
   const T=BTABS.find(x=>x[0]===k)||BTABS[0], show=T[2], all=k==='all';
