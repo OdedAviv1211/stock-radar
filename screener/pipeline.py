@@ -8,7 +8,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
-from . import news, watch, analogs, config, data, micha, patterns, scoring, themes
+from . import news, watch, analogs, config, data, micha, patterns, scoring, themes, theories
 from .indicators import compute
 
 ROOT = data.ROOT
@@ -997,6 +997,24 @@ def run(today=None):
                     r_["si"] = short_info(infos.get(r_["t"]))
     except Exception as e:  # noqa
         log(f"short interest skipped: {e}")
+    # ---- 26 שיטות ניתוח – קונצנזוס (מידע בלבד בחודש הראשון) ----
+    try:
+        mlev = next((r.get("level", 0) for r in report.get("regime", []) if "SPY" in r.get("name", "")), 0)
+        objs = [x for g in ("picks", "picks_ext", "portfolio") for x in report.get(g, []) or []] + \
+               ((report.get("quality_dips") or {}).get("items") or [])
+        cache_th = {}
+        for o in objs:
+            t = o.get("t")
+            if not t or t not in rows or t not in hist:
+                continue
+            if t not in cache_th:
+                x_ = rows[t]
+                cache_th[t] = theories.evaluate(hist[t], x_["f"], x_, infos.get(t), mlev, o.get("si") or short_info(infos.get(t)))
+            o["th"] = cache_th[t]
+        report["methods"] = [{"n": n, "name": nm, "fam": theories.FAMILIES[fi], "desc": d} for n, nm, fi, d in theories.METHODS]
+        log(f"theories: {len(cache_th)} tickers")
+    except Exception as e:  # noqa
+        log(f"theories skipped: {e}")
     # ---- קציר מנהלים: שורות תחתונות ----
     try:
         report["exec"] = exec_summary(report)
