@@ -673,19 +673,22 @@ def summary(api, rep, book, actions, events):
         used += tot
         bench = a["bench_shares"] * spy if spy else None
         longs = sorted([{"t": t, "qty": h["qty"], "price": px.get(t), "value": h["qty"] * (px.get(t) or 0),
+                         "cost": h["cost"] / h["qty"] if h["qty"] else None,
                          "pl": (px.get(t) or 0) / (h["cost"] / h["qty"]) - 1 if h["qty"] and h["cost"] else None,
                          "w": h["qty"] * (px.get(t) or 0) / tot if tot else None,
                          "watch": book.get("sell_watch", {}).get(f"{code}|{t}")} for t, h in a["long"].items()],
                        key=lambda x: -x["value"])
-        shorts = [{"t": t, "qty": s["qty"], "entry": s["entry"], "price": px.get(t), "stop": s["stop"], "target": s["target"],
-                   "pl": (px.get(t) or s["entry"]) / s["entry"] - 1, "date": s["date"], "half": s["half"]} for t, s in a["short"].items()]
+        shorts = [{"t": t, "qty": s["qty"], "entry": s["entry"], "price": px.get(t), "stop": s["stop"], "stop0": s.get("stop0"),
+                   "target": s["target"], "peak": s.get("peak"), "pl": (px.get(t) or s["entry"]) / s["entry"] - 1, "date": s["date"],
+                   "half": s["half"], "days": (now().date() - datetime.strptime(s["date"], "%Y-%m-%d").date()).days}
+                  for t, s in a["short"].items()]
         pending = book.get("mirror_pending")
         accts.append({"code": code, "name": A["name"], "value": tot, "contrib": a["contrib"], "pending": pending,
                       "ret": None if pending else tot / a["contrib"] - 1,
                       "bench": bench, "bench_ret": bench / a["contrib"] - 1 if bench and not pending else None,
                       "alloc": {"long": lv / tot, "short": (sv + a["short_cash"]) / tot, "cash": a["cash"] / tot} if tot else {},
-                      "targets": A["targets"], "cash": a["cash"], "short_cash": a["short_cash"], "realized": a.get("realized", 0),
-                      "long": longs, "short": shorts, "deposits": a["deposits"][-3:]})
+                      "targets": A["targets"], "cap": A["cap"], "deposit_ils": A["deposit_ils"], "cash": a["cash"], "short_cash": a["short_cash"],
+                      "realized": a.get("realized", 0), "long": longs, "short": shorts, "deposits": a["deposits"][-12:]})
     closed = book.get("closed", [])
     wins = [c for c in closed if c["ret"] > 0]
     today = rep["asof"]
