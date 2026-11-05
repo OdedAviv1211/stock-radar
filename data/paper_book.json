@@ -52,6 +52,10 @@
     "IREN": {
      "qty": 25.0,
      "cost": 544.71
+    },
+    "MSFT": {
+     "qty": 8.0,
+     "cost": 4424.44
     }
    },
    "short": {},
@@ -146,7 +150,8 @@
   "9e8ea502-901f-4b30-9816-add406cf7659",
   "3d39c751-81e6-4e87-98e5-13cd3e8a08f1",
   "5e8c3c48-aefa-44aa-a2fc-920c1ecfcf1f",
-  "16fdd737-43de-4442-a8b6-0a3c7834e11d"
+  "16fdd737-43de-4442-a8b6-0a3c7834e11d",
+  "6ec1f524-88f0-4842-96ac-6299466c4aff"
  ],
  "plans": {},
  "sell_watch": {
@@ -158,7 +163,7 @@
  },
  "last_deposit": "2026-11",
  "closed": [],
- "last_sync": "2026-11-05T08:45:47.077515+00:00",
+ "last_sync": "2026-11-05T20:49:50.624411+00:00",
  "mirror_pending": false,
  "regime": "מגמה עולה",
  "mirror_tries": 1
