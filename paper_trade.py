@@ -348,8 +348,9 @@ def nightly(api, rep, book, actions, events):
             if not bad:
                 sw.pop(k, None)
                 continue
-            sw[k] = sw.get(k, 0) + 1
-            if sw[k] >= R["long_confirm_days"] and not any(o["t"] == t and o["acct"] == code and o["side"] == "sell" for o in oo):
+            if book.get("sw_date") != today:      # סופרים יום מסחר אחד לכל תאריך, גם אם יש כמה ריצות
+                sw[k] = sw.get(k, 0) + 1
+            if sw.get(k, 0) >= R["long_confirm_days"] and not any(o["t"] == t and o["acct"] == code and o["side"] == "sell" for o in oo):
                 q_ = int(h["qty"]) if float(h["qty"]).is_integer() else h["qty"]
                 try:
                     api.order({"symbol": t, "qty": str(q_), "side": "sell", "type": "market", "time_in_force": "day",
@@ -360,6 +361,7 @@ def nightly(api, rep, book, actions, events):
                 except Exception as e:  # noqa
                     log(f"sell {t}: {e}")
 
+    book["sw_date"] = today
     # 3) הפקדה חודשית (יום המסחר הראשון בחודש) + קניות לחלק הארוך
     book["regime"] = reg_txt
     month = today[:7]
