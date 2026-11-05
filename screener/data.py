@@ -149,7 +149,9 @@ FUND_KEYS = ["longName", "shortName", "sector", "industry", "marketCap", "revenu
              "numberOfAnalystOpinions", "currency", "financialCurrency",
              "earningsTimestamp", "earningsTimestampStart", "earningsTimestampEnd", "isEarningsDateEstimate",
              "totalRevenue", "totalCash", "totalDebt", "currentRatio", "profitMargins", "freeCashflow",
-             "sharesShort", "sharesShortPriorMonth", "shortRatio", "dateShortInterest", "sharesPercentSharesOut"]
+             "sharesShort", "sharesShortPriorMonth", "shortRatio", "dateShortInterest", "sharesPercentSharesOut",
+             "returnOnAssets", "operatingCashflow", "netIncomeToCommon", "debtToEquity", "trailingEps", "bookValue",
+             "ebitda", "enterpriseValue"]
 
 
 def fundamentals(tickers, max_age_days=5):
@@ -167,7 +169,7 @@ def fundamentals(tickers, max_age_days=5):
     empty_run, blocked = 0, False
     for n, t in enumerate(tickers):
         c = cache.get(t)
-        if c and c.get("_ts", "") > cutoff and "sharesShortPriorMonth" in c and any(v is not None for k, v in c.items() if k != "_ts"):
+        if c and c.get("_ts", "") > cutoff and "enterpriseValue" in c and any(v is not None for k, v in c.items() if k != "_ts"):
             out[t] = c
             continue
         info = None
