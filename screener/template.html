@@ -33,6 +33,11 @@ nav{position:sticky;top:0;z-index:5;background:var(--bg);display:flex;gap:6px;ov
 nav a{white-space:nowrap;text-decoration:none;color:var(--muted);background:var(--card);border:1px solid var(--line);padding:6px 12px;border-radius:999px;font-size:13px;font-weight:500}
 nav a:hover{color:var(--ink);border-color:var(--accent)}
 #briefNav{position:sticky;top:0;z-index:6}
+.ii{display:inline-block;width:16px;height:16px;line-height:16px;text-align:center;border-radius:50%;background:var(--accent-soft,#e8f0fb);color:var(--accent);font-size:11px;font-weight:700;cursor:pointer;margin-inline-start:3px;vertical-align:middle}
+#iiPop{position:fixed;inset-inline:12px;bottom:14px;z-index:50;background:var(--card);border:1px solid var(--accent);border-radius:12px;padding:12px 14px;box-shadow:0 8px 30px rgba(0,0,0,.18);font-size:14px;display:none}
+.dc{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:8px 0;background:var(--bg)}
+.dc .k{font-weight:700}.thv{display:inline-block;width:18px;text-align:center}
+.ask{display:inline-block;margin-top:6px;padding:5px 10px;border-radius:999px;border:1px solid var(--accent);color:var(--accent);text-decoration:none;font-size:13px;font-weight:600}
 .tabhide{display:none!important}
 nav a.on{color:#fff;background:var(--accent);border-color:var(--accent)}
 section{margin:22px 0 30px;scroll-margin-top:60px}
@@ -174,6 +179,7 @@ details.nwd{margin-top:8px}details.nwd>summary{cursor:pointer;font-size:13px;col
 <section id="brief">
   <div class="sec-h"><div><h2>הדוח היומי</h2><div class="sub">דוח אחד – בחירת לשונית מציגה את החלק שלה · "הכל" מציג את כל הנתונים · לחיצה על שורה = פירוט</div></div></div>
   <nav id="briefNav" aria-label="לשוניות הדוח"></nav>
+  <div id="iiPop" role="dialog"></div>
   <div class="card" style="padding:4px 14px 12px" id="briefBox"></div>
 </section>
 
@@ -481,11 +487,73 @@ function pickTrackHtml(){
 }
 
 
+// ---- מקרא, ⓘ, כרטיס החלטה, 26 שיטות, שאל את Claude ----
+const GL={
+ grade:'<b>דירוג איכות בהנחה (למשל B63)</b><br>האות = דרגה: A ‏75+, B ‏60–74, C מתחת ל-60. המספר = ציון מתוך 100: צמיחה 25 · רווחיות 20 · מאזן 15 · תזרים 10 · תמחור 15 · תזמון 15 · שורטים ±5.',
+ score:'<b>ציון הרדאר (0–100)</b><br>שילוב של מגמה, חוזק יחסי, תבנית, נפח, ענף ונתונים פונדמנטליים. המשקלות מכוילים כל שבוע לפי מה שעבד בפועל.',
+ rs:'<b>RS – חוזק יחסי</b><br>RS 88 = המניה עלתה יותר מ-88% מהמניות בשוק בשנה האחרונה (בדגש על החודשים האחרונים).',
+ stage:'<b>שלב (Weinstein)</b><br>1 בסיס · 2 מגמה עולה (קונים) · 3 טופ (זהירות) · 4 מגמה יורדת.',
+ horizon:'<b>🌳 / 🌱 / ⚡</b><br>🌳 מתאימה לטווח ארוך (כל 5 התנאים) · 🌱 מגמה ארוכה בבנייה (חסרים 1–2) · ⚡ למסחר קצר בלבד.',
+ si:'<b>שורט (שיטה 26)</b><br>כמה מהמניות מושאלות להימור על ירידה, והשינוי מהחודש הקודם. 🟢 השורטיסטים סוגרים · ⚠️ מגדילים הימור. הנתון מתעדכן פעמיים בחודש באיחור של כשבועיים.',
+ th:'<b>קונצנזוס 26 השיטות</b><br>כל שיטה מצביעה בעד / נייטרלי / נגד. חמש משפחות במשקל שווה (מגמה, מומנטום, תבניות, איכות, תמחור ושורט), כדי ששיטות דומות לא יצביעו פעמיים. בחודש הראשון – מידע בלבד, לא משנה את הציון.',
+ action:'<b>פעולה בתיק</b><br>אזור הוספה = מגמה עולה ותיקון לממוצע 20/50 · להחזיק – איכותית בירידה = העסק חזק, לא מוסיפים עד היפוך · לבחון צמצום = גם העסק וגם המגמה חלשים · משקל יתר = לא מוסיפים, מאזנים דרך ההפקדות.',
+ review:'<b>קו בחינה</b><br>3% מתחת לממוצע 200. סגירה מתחתיו = לבדוק את העסק, לא מכירה אוטומטית.',
+ plan:'<b>כניסה · סטופ · יעד</b><br>כניסה = נקודת הפריצה · סטופ = מחיר היציאה בהפסד (כ-8%) · 3R = יעד שהרווח בו פי 3 מהסיכון.',
+ verdict:'<b>ההחלטה ב"איכות בהנחה"</b><br>מועמדת לקנייה הדרגתית = A/B ומתאוששת (🔄) · רשימת המתנה = עדיין יורדת · לחכות לדוח = דוח בתוך 7 ימים.'
+};
+const ii=k=>`<span class="ii" data-g="${k}" role="button" aria-label="הסבר">i</span>`;
+document.addEventListener('click',ev=>{const b=ev.target.closest('.ii');const pop=document.getElementById('iiPop');
+  if(b){ev.preventDefault();ev.stopPropagation();pop.innerHTML=(GL[b.dataset.g]||'')+'<div class="sub" style="margin-top:6px">לחיצה בכל מקום לסגירה</div>';pop.style.display='block';return}
+  if(pop&&pop.style.display==='block'&&!ev.target.closest('#iiPop')) pop.style.display='none';},true);
+function thHtml(th){
+  if(!th) return '';
+  const ic=v=>v>0?'✅':v<0?'❌':'⚪';
+  const fams=Object.entries(th.by).map(([k,b])=>`${esc(k)} <b class="num">${b.pro}/${b.n}</b>${b.con?` <span class="muted">(${b.con} נגד)</span>`:''}`).join(' · ');
+  return `<details class="nwd"><summary><b>קונצנזוס ${th.pro}/${th.n} בעד</b> · ${th.con} נגד ${ii('th')}</summary><div class="sub" style="margin:4px 0">${fams}</div>`+
+   Object.entries(th.fam).map(([k,L])=>`<div style="margin-top:4px"><b>${esc(k)}</b>${L.map(m=>`<div class="sub"><span class="thv">${ic(m.vote)}</span>${m.n}. ${esc(m.name)} – ${esc(m.why)}</div>`).join('')}</div>`).join('')+`</details>`;
+}
+function askUrl(o,kind,decision,reasons,change){
+  const lines=[`נתח עבורי את המניה ${o.t}${o.name?' ('+o.name+')':''} בעברית פשוטה.`,
+   `נתוני "רדאר המניות" שלי מ-${D.asof}: מחיר ${o.price!=null?(+o.price).toFixed(2):'—'}`+(o.score!=null&&kind!=='qd'?`, ציון רדאר ${Math.round(o.score)}`:'')+(o.rs!=null?`, RS ${o.rs}`:'')+(o.stage!=null?`, שלב ${o.stage}`:'')+(o.grade?`, דירוג איכות ${o.grade}${o.score}`:'')+'.',
+   `ההחלטה של הרדאר: ${decision}.`, `הסיבות: ${reasons.join('; ')}.`, `מה ישנה את ההחלטה: ${change}.`];
+  if(o.th) lines.push(`קונצנזוס 26 שיטות: ${o.th.pro} בעד, ${o.th.con} נגד (${Object.entries(o.th.by).map(([k,b])=>k+' '+b.pro+'/'+b.n).join(', ')}).`);
+  if(o.si&&o.si.pct!=null) lines.push(`שורט: ${(o.si.pct*100).toFixed(1)}% מהמניות${o.si.chg!=null?`, ${(o.si.chg*100).toFixed(0)}% מהחודש הקודם`:''}.`);
+  lines.push('הסבר מה זה אומר, מה הסיכונים, מה הייתי צריך לבדוק עוד, ומה החדשות האחרונות עליה. זה לא ייעוץ השקעות – אני רוצה להבין.');
+  return 'https://claude.ai/new?q='+encodeURIComponent(lines.join('\n'));
+}
+function decisionCard(o,kind){
+  let dec='',why=[],chg='';
+  if(kind==='pick'){dec=(o.horizon?o.horizon.label+' · ':'')+'כניסה לפי התוכנית';why=(o.good||[]).slice(0,3);
+    chg=o.plan?`כניסה מעל ${o.plan.entry.toFixed(2)} · יציאה מתחת ל-${o.plan.stop.toFixed(2)} · יעד ${o.plan.target1.toFixed(2)}`:'שבירת מגמה (שלב 4) או יציאה מהטופ';}
+  else if(kind==='pf'){dec=o.action||'';why=(o.signals||[]).slice(0,3);
+    chg=`סגירה מתחת לקו הבחינה ${o.review!=null?o.review.toFixed(2):''} וגם חולשה עסקית = צמצום · מגמה עולה ותיקון לממוצע 50 = הוספה`;}
+  else {dec=o.verdict||'';why=[`${(o.dd*100).toFixed(0)}% מהשיא`,`צמיחה ${(o.rev_g*100).toFixed(0)}%, רווחיות ${(o.margin*100).toFixed(0)}%`,o.state||''];
+    chg='חזרה מעל ממוצע 20 עם שבוע חיובי = קנייה הדרגתית · אובדן תנאי איכות = יציאה מהרשימה';}
+  why=why.filter(Boolean);
+  return `<div class="dc"><div><span class="k">כרטיס החלטה:</span> <b>${esc(dec)}</b></div>
+   <div class="sub"><b>למה:</b> ${why.map(esc).join(' · ')||'—'}</div>
+   <div class="sub"><b>מה ישנה את ההחלטה:</b> ${esc(chg)}</div>
+   ${thHtml(o.th)}
+   <a class="ask" href="${askUrl(o,kind,dec,why,chg)}" target="_blank" rel="noopener">🤖 שאל את Claude על ${esc(o.t.replace('.TA',''))}</a></div>`;
+}
+function glossaryHtml(){
+  const M=D.methods||[];
+  let h=`<div class="bt">📖 מקרא – כל הסימנים</div>`+Object.values(GL).map(x=>`<div class="sub" style="margin:6px 0">${x}</div>`).join('');
+  h+=`<div class="sub" style="margin:6px 0"><b>💎 / 🔄 / 💼</b><br>איכות בהנחה / מתחילה להתאושש (מעל ממוצע 20 ושבוע חיובי) / נמצאת בתיק שלך.</div>
+  <div class="sub" style="margin:6px 0"><b>🔴 🟠 🔵 🟢</b><br>דחיפות: לפעול / אזהרה / לתשומת לב / תקין.</div>
+  <div class="sub" style="margin:6px 0"><b>ממוצע 20 / 50 / 150 / 200</b><br>ממוצע המחיר של X ימי המסחר האחרונים: 20 קצר · 50 בינוני · 150/200 ארוך.</div>
+  <div class="sub" style="margin:6px 0"><b>VCP · Trend Template 8/8 · מיכה 3/6 · דמיון X%</b><br>התכווצות תנודתיות לפני פריצה · כמה מ-8 תנאי המגמה של Minervini מתקיימים · כמה מ-6 תנאי שיטת מיכה סטוקס · דמיון הגרף למניה מנצחת בעבר.</div>`;
+  if(M.length){const fams=[...new Set(M.map(m=>m.fam))];
+    h+=`<div class="bt">26 שיטות הניתוח</div><div class="sub">כל שיטה מצביעה בעד/נייטרלי/נגד. מוצג בכרטיס ההחלטה של כל מניה.</div>`+
+    fams.map(f=>`<div style="margin-top:6px"><b>${esc(f)}</b>${M.filter(m=>m.fam===f).map(m=>`<div class="sub">${m.n}. <b>${esc(m.name)}</b> – ${esc(m.desc)}</div>`).join('')}</div>`).join('');}
+  return h+`<div class="sub" style="margin-top:8px">שאלה על מניה מסוימת? בכל כרטיס החלטה יש כפתור "🤖 שאל את Claude" שפותח שיחה עם כל הנתונים שלה.</div>`;
+}
+
 // ---- עניין שורט (שיטה 26) ----
 function siHtml(si){
   if(!si||si.pct==null) return '';
   const ic=si.vote>0?'🟢':si.vote<0?'⚠️':'⚪';
-  return `<div class="sub num">${ic} <b>שורט:</b> ${(si.pct*100).toFixed(1)}% מהמניות הצפות${si.chg!=null?` (${si.chg>=0?'+':''}${(si.chg*100).toFixed(0)}% מהחודש הקודם)`:''}${si.dtc!=null?` · ${(+si.dtc).toFixed(1)} ימים לכיסוי`:''} – ${esc(si.txt||'')}${si.asof?` <span class="muted">(נכון ל-${esc(si.asof)})</span>`:''}</div>`;
+  return `<div class="sub num">${ic} <b>שורט</b>${ii('si')}<b>:</b> ${(si.pct*100).toFixed(1)}% מהמניות הצפות${si.chg!=null?` (${si.chg>=0?'+':''}${(si.chg*100).toFixed(0)}% מהחודש הקודם)`:''}${si.dtc!=null?` · ${(+si.dtc).toFixed(1)} ימים לכיסוי`:''} – ${esc(si.txt||'')}${si.asof?` <span class="muted">(נכון ל-${esc(si.asof)})</span>`:''}</div>`;
 }
 
 // ---- מניות איכות שנפלו ----
@@ -498,12 +566,13 @@ function qualityDipsHtml(){
   if(!Q.items.length) return h+'<div class="sub">אין היום מניות שעומדות בכל התנאים.</div>';
   const gc=g=>g==='A'?'var(--up)':g==='B'?'var(--accent)':'var(--muted)';
   h+=`<div class="sub" style="margin-bottom:4px"><b>דירוג 0–100:</b> צמיחה 25 · רווחיות 20 · מאזן 15 · תזרים 10 · תמחור 15 · תזמון (התאוששות ומעל ממוצע 200) 15 · שורטים ±5 (יורד ונמוך = +5, עולה בחדות ומעל 10% = ‎-5). A ≥75, B ≥60. <b>אותה בדיקת איכות</b> משמשת גם את "התיקים שלי" – כך שמניה איכותית בתיק לא תקבל "לצמצם" רק בגלל ירידה.</div>`;
-  h+=Q.items.map((x,ix)=>`<details class="bi"><summary><b class="tk">${ix+1}. ${esc(x.t)} <span class="num" style="color:${gc(x.grade)}">${x.grade||''}${x.score!=null?x.score:''}</span></b><span class="why">${x.tech?'💻 ':''}<b class="num down">${(x.dd*100).toFixed(0)}%</b> מהשיא · צמיחה ${pct(x.rev_g,0)} · רווחיות ${pct(x.margin,0)}${x.rebound?' · <b style="color:var(--up)">🔄 מתאוששת</b>':''}${(x.held||[]).length?' · 💼 בתיק':''}${x.si&&x.si.vote<0?' · ⚠️ שורט עולה':''}${x.squeeze?' · ⚡ פוטנציאל סחיטת שורט':''}<br><b>${esc(x.verdict||'')}</b></span><span class="ex"></span></summary>
+  h+=Q.items.map((x,ix)=>`<details class="bi"><summary><b class="tk">${ix+1}. ${esc(x.t)} <span class="num" style="color:${gc(x.grade)}">${x.grade||''}${x.score!=null?x.score:''}</span></b>${ii('grade')}<span class="why">${x.tech?'💻 ':''}<b class="num down">${(x.dd*100).toFixed(0)}%</b> מהשיא · צמיחה ${pct(x.rev_g,0)} · רווחיות ${pct(x.margin,0)}${x.rebound?' · <b style="color:var(--up)">🔄 מתאוששת</b>':''}${(x.held||[]).length?' · 💼 בתיק':''}${x.si&&x.si.vote<0?' · ⚠️ שורט עולה':''}${x.squeeze?' · ⚡ פוטנציאל סחיטת שורט':''}<br><b>${esc(x.verdict||'')}</b></span><span class="ex"></span></summary>
    <div class="bd"><div class="sub">${esc(x.name)} · ${esc(x.sector)} · שווי ${m(x.mcap)}</div>
    <div class="sub num">מחיר ${x.price.toFixed(2)} · שיא 52 שבועות ${x.hi52.toFixed(2)} · חודש ${pct(x.r21)} · ${x.dd<Q.spy_dd?`נפלה ${((Q.spy_dd-x.dd)*100).toFixed(0)} נק' יותר מהשוק`:'נפלה פחות מהשוק'}</div>
    <div class="sub num">מזומן נטו ${m(x.net_cash)} · יחס שוטף ${x.cr!=null?x.cr.toFixed(1):'—'} · תזרים חופשי ${m(x.fcf)} · מכפיל עתידי ${x.fpe!=null?x.fpe.toFixed(0):'—'} · ${x.above200?'מעל ממוצע 200':'מתחת לממוצע 200'}</div>
    <div><b>מצב:</b> ${esc(x.state)}</div>
    ${siHtml(x.si)}
+   ${decisionCard(x,'qd')}
    ${x.pts?`<div class="sub num">פירוט הציון: ${Object.entries(x.pts).map(([k,v])=>`${k} ${v}`).join(' · ')}</div>`:''}
    ${(x.held||[]).length?`<div class="sub">💼 בתיק: ${x.held.map(hh=>`${esc(hh.acct)}${hh.w!=null?' '+(hh.w*100).toFixed(0)+'%':''} – ${esc(hh.action||'')}`).join(' · ')}</div>`:''}
    <div class="sub num">ברשימה מאז ${esc(x.since)} (מחיר ${x.entry.toFixed(2)}) · מאז: ${pct(x.ret_since)} · S&amp;P 500 באותה תקופה: ${pct(x.spy_since)}</div></div></details>`).join('');
@@ -678,12 +747,13 @@ function renderBrief(){
     const n3=rows.filter(r=>r.level>=3).length, n2=rows.filter(r=>r.level===2).length, nadd=rows.filter(r=>r.action==='אזור הוספה'||(r.action||'').startsWith('הוספה הדרגתית')).length;
     h+=`<details class="blk sub2" open><summary><span class="bt" style="margin:0">${esc(an)} <span class="sub">· $${Math.round(tot).toLocaleString()} · ${rows.length} מניות · ${nadd} להוספה · ${n2} באזהרה · ${n3} לבחינה</span></span><span class="ex"></span></summary>`;
     h+=rows.map(p=>{const sig=(p.signals||[p.status||''])[0];
-      return `<details class="bi"><summary><b class="tk">${esc(p.t.replace('.TA',''))}${p.weight!=null?` <span class="sub num">${(p.weight*100).toFixed(0)}%</span>`:''}</b><span class="why"><span class="lvl${p.level}">${esc(p.action||LVL[p.level])}</span>${p.quality&&p.quality.ok?' 💎':''} · ${esc(sig)}</span><span class="ex">${toneChip(((D.news||{})[p.t]||{}).verdict)}</span></summary>
+      return `<details class="bi"><summary><b class="tk">${esc(p.t.replace('.TA',''))}${p.weight!=null?` <span class="sub num">${(p.weight*100).toFixed(0)}%</span>`:''}</b><span class="why"><span class="lvl${p.level}">${esc(p.action||LVL[p.level])}</span>${ii('action')}${p.quality&&p.quality.ok?' 💎':''} · ${esc(sig)}</span><span class="ex">${toneChip(((D.news||{})[p.t]||{}).verdict)}</span></summary>
       <div class="bd">${p.price!=null?`<div class="sub num">מחיר ${px(p.price,p.cur)} · יום ${pct(p.r1d)} · ${p.ret==null?'':'מאז קנייה '+pct(p.ret)+' · '}שווי ${px(p.value,p.cur)} · שלב ${p.stage} · RS ${p.rs}${p.spec?' · ספקולטיבית':''}</div>
       <div class="sub num"><b>קו בחינה</b> ${px(p.review,p.cur)} (3% מתחת לממוצע 200 – סגירה מתחתיו = לבחון, לא מכירה אוטומטית)</div>
       ${p.value_ils?`<div class="sub num">בשקלים: ₪${Math.round(p.value_ils).toLocaleString()}${p.gain!=null?` · רווח צבור ${px(p.gain,p.cur)}${p.tax_est?` · מס משוער במכירה ${px(p.tax_est,p.cur)} (${Math.round(p.tax_rate*100)}%) · נטו ${px(p.gain-p.tax_est,p.cur)}`:' · בהפסד – מכירה מקזזת מס'}`:''}</div>`:''}`:''}
       ${p.quality?`<div class="sub"><b>איכות העסק:</b> ${p.quality.ok?'💎 ':p.quality.ok===false?'⚠️ ':''}${esc((p.quality.why||[]).join(' · '))}</div>`:''}
       ${siHtml(p.si)}
+      ${decisionCard(p,'pf')}
       ${p.sync?`<div style="margin:4px 0"><b>החלטה מסונכרנת:</b> ${esc(p.sync)}</div>`:''}
       <ul class="rs ${p.level>=2?'warn':'good'}">${(p.signals||[]).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
       <div style="margin-top:8px"><b>מה נאמר</b></div>${newsHtml(p.t)}</div></details>`}).join('');
@@ -703,8 +773,9 @@ function renderBrief(){
      <ul class="rs">${w.events.map(e=>`<li>${esc(e.text)}</li>`).join('')}</ul><div style="margin-top:8px"><b>מה נאמר</b></div>${newsHtml(w.t)}</div></details>`).join(''); }
   h+=`<div class="bt">10 המניות של היום</div>`+D.picks.map(p=>`<details class="bi"><summary><b class="tk">${p.rank}. ${esc(p.t.replace('.TA',''))}</b><span class="why">${p.horizon?`<b style="color:${p.horizon.ok?'var(--up)':'var(--muted)'}">${p.horizon.ok?'🌳':(p.horizon.label==='מגמה ארוכה בבנייה'?'🌱':'⚡')} ${esc(p.horizon.label)}</b> · `:''}${esc(p.theme)} · ציון <b class="num">${Math.round(p.score)}</b> · RS ${p.rs}${p.plan?` · <b style="color:var(--down)">סטופ ${p.plan.stop.toFixed(2)}</b>`:''}${p.earn!=null&&p.earn<=10?' · ⚠ דוח בעוד '+Math.max(0,p.earn)+' ימים':''}</span><span class="ex">${toneChip(((D.news||{})[p.t]||{}).verdict)}</span></summary>
      <div class="bd"><div class="sub">${esc(p.name||'')}</div><ul class="rs good">${(p.good||[]).slice(0,5).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>${(p.warn||[]).length?`<ul class="rs warn">${p.warn.slice(0,3).map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:''}
-     ${p.plan?`<div class="sub num">כניסה ${p.plan.entry.toFixed(2)} · סטופ ${p.plan.stop.toFixed(2)} · ${esc(p.plan.target_src)} ${p.plan.target1.toFixed(2)}</div>`:''}
+     ${p.plan?`<div class="sub num">${ii('plan')} כניסה ${p.plan.entry.toFixed(2)} · סטופ ${p.plan.stop.toFixed(2)} · ${esc(p.plan.target_src)} ${p.plan.target1.toFixed(2)}</div>`:''}
      ${siHtml(p.si)}
+     ${decisionCard(p,'pick')}
      <div style="margin-top:8px"><b>מה נאמר</b></div>${newsHtml(p.t)}</div></details>`).join('');
   if(D.israel&&D.israel.length) h+=`<div class="sub" style="margin-top:8px">🇮🇱 ת"א: ${D.israel.map(p=>esc(p.t.replace('.TA',''))).join(' · ')}</div>`;
   if((D.picks_ext||[]).length) h+=`<details class="bi"><summary><b>הרחבה: מקומות ${D.picks_ext[0].rank}–${D.picks_ext[D.picks_ext.length-1].rank}</b><span class="why">מניות נוספות עם ציון גבוה, לפי הסדר</span><span class="ex"></span></summary><div class="bd">${D.picks_ext.map(p=>`<div style="padding:3px 0"><b class="tk">${p.rank}. ${esc(p.t)}</b> · ${p.horizon?(p.horizon.ok?'🌳':(p.horizon.label==='מגמה ארוכה בבנייה'?'🌱':'⚡')):''} ${esc(p.theme)} · ציון <b class="num">${Math.round(p.score)}</b>${p.plan?` · <b style="color:var(--down)">סטופ ${p.plan.stop.toFixed(2)}</b>`:''}</div>`).join('')}</div></details>`;
@@ -718,13 +789,13 @@ function renderBrief(){
   if(off.length) h+=`<div class="bt">דיווחים רשמיים ל-SEC השבוע</div><ul class="nws">${off.slice(0,10).map(({t,i})=>`<li><b class="tk">${esc(t)}</b> <a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.title)}</a> <span class="src">· ${esc(i.date)}</span></li>`).join('')}</ul>`;
   if(!hl.length&&!off.length) h+=`<div class="sub">אין פרסומים מהותיים היום.</div>`;
   if(D.research_url) h+=`<div class="bt">אמירות פוליטיות ומאקרו</div><div style="font-size:14px">טראמפ, הבית הלבן, הפד, מאסק ומנכ"לי שרשרת ה-AI – ההשפעה על סקטורים ומניות: <a href="${esc(D.research_url)}" target="_blank" rel="noopener">חדר המחקר ←</a></div>`;
-  h+=`</details></div><div class="tabp" data-tab="paper">`+paperHtml()+`</div>`;
+  h+=`</details></div><div class="tabp" data-tab="paper">`+paperHtml()+`</div><div class="tabp" data-tab="gl">`+glossaryHtml()+`</div>`;
   $('#briefBox').innerHTML=h;
   briefTab(briefCur());
 }
 const BTABS=[['ex','סיכום',['ex']],['pf','התיקים שלי',['pf','#portfolio']],['watch','רשימת מעקב',['#watch']],['day','ניתוח יומי',['day','#market']],
  ['top','טופ 10',['#top10']],['qd','💎 איכות בהנחה',['qd']],['trk','מעקב וביצועים',['trk','#track','#backtest']],['il','ישראל',['#israel']],
- ['heat','מפת חום',['#heatmap']],['th','קטגוריות וענפים',['#themes','#groups','#caps']],['scan','סריקה מלאה',['#scan']],['paper','🧪 תיק דמה',['paper']],['res','מחקר',['res']],['method','שיטה',['#method']],['all','הכל',[]]];
+ ['heat','מפת חום',['#heatmap']],['th','קטגוריות וענפים',['#themes','#groups','#caps']],['scan','סריקה מלאה',['#scan']],['paper','🧪 תיק דמה',['paper']],['gl','📖 מקרא',['gl']],['res','מחקר',['res']],['method','שיטה',['#method']],['all','הכל',[]]];
 function briefCur(){try{const k=localStorage.getItem('briefTab');return BTABS.some(x=>x[0]===k)?k:'ex'}catch(e){return 'ex'}}
 function briefTab(k){
   const T=BTABS.find(x=>x[0]===k)||BTABS[0], show=T[2], all=k==='all';
