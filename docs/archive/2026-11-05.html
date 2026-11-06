@@ -87,6 +87,8 @@ ul.warn li::before{content:"!";color:var(--warn);inset-inline-start:4px}
 .fund b{color:var(--ink)}
 .ctrl{display:flex;gap:6px;flex-wrap:wrap}
 .seg{display:inline-flex;background:var(--soft);border-radius:10px;padding:3px}
+.pdfbtn{border:1px solid var(--accent);background:var(--accent-soft);color:var(--accent);font:inherit;font-size:13px;font-weight:600;padding:4px 12px;border-radius:999px;cursor:pointer}
+.pdfbtn:hover{background:var(--accent);color:#fff}
 .seg button{border:0;background:none;color:var(--muted);font:inherit;font-size:13px;padding:5px 11px;border-radius:8px;cursor:pointer}
 .seg button.on{background:var(--card);color:var(--ink);font-weight:700;box-shadow:var(--shadow)}
 #heat{position:relative;width:100%;height:560px;border-radius:12px;overflow:hidden;background:var(--line)}
@@ -556,11 +558,75 @@ function siHtml(si){
   return `<div class="sub num">${ic} <b>שורט</b>${ii('si')}<b>:</b> ${(si.pct*100).toFixed(1)}% מהמניות הצפות${si.chg!=null?` (${si.chg>=0?'+':''}${(si.chg*100).toFixed(0)}% מהחודש הקודם)`:''}${si.dtc!=null?` · ${(+si.dtc).toFixed(1)} ימים לכיסוי`:''} – ${esc(si.txt||'')}${si.asof?` <span class="muted">(נכון ל-${esc(si.asof)})</span>`:''}</div>`;
 }
 
+// ---- ייצוא "איכות בהנחה" ל-PDF: מסמך נפרד להדפסה (Ctrl+P / "שמירה כ-PDF") ----
+function qdPdf(full=true){
+  const Q=D.quality_dips; if(!Q||!Q.items) return;
+  const m=v=>v==null?'—':(Math.abs(v)>=1e9?'$'+(v/1e9).toFixed(1)+'B':'$'+(v/1e6).toFixed(0)+'M');
+  const pc=(x,d=0)=>x==null?'—':`<span class="${x>=0?'up':'down'}">${x>=0?'+':''}${(x*100).toFixed(d)}%</span>`;
+  const ic=v=>v>0?'✅':v<0?'❌':'⚪';
+  const gcol=g=>g==='A'?'#12805c':g==='B'?'#2f5bea':'#5d6673';
+  const items=Q.items;
+  const held=items.filter(x=>(x.held||[]).length), reb=items.filter(x=>x.rebound), warn=items.filter(x=>x.si&&x.si.vote<0);
+  // כותרת + תקציר
+  let b=`<h1>💎 איכות בהנחה</h1><div class="meta">רדאר מניות יומי · נתוני סגירה ${esc(D.asof)} · הופק ${new Date().toLocaleString('he-IL')}</div>
+  <div class="box"><b>מה זה:</b> חברות חזקות פיננסית שנפלו 15% ומעלה משיא 52 השבועות. תנאים: שווי מעל $1B · הכנסות וצמיחה שנתית חיובית · רווחית · קופה נזילה (מזומן ≥ חוב או יחס שוטף ≥ 1.5).
+  S&amp;P 500 עצמו: ${pc(Q.spy_dd)} מהשיא. נבדקו ${Q.checked} מועמדות, עברו ${items.length}.${Q.track&&Q.track.n?` מעקב: ממוצע ${pc(Q.track.avg,1)} מאז הכניסה לרשימה, ${pc(Q.track.ex,1)} מול המדד (${Q.track.n} מניות).`:''}<br>
+  <b>איך לקרוא:</b> רשימת קנייה פוטנציאלית לטווח ארוך, לא איתות כניסה. כניסה עדיפה כשמופיע 🔄 (חזרה מעל ממוצע 20) – לא בזמן נפילה.
+  <b>דירוג 0–100:</b> צמיחה 25 · רווחיות 20 · מאזן 15 · תזרים 10 · תמחור 15 · תזמון 15 · שורטים ±5. A ≥75, B ≥60.</div>
+  <div class="kp"><div><b>${items.length}</b><span>מניות ברשימה</span></div><div><b>${items.filter(x=>x.grade==='A').length}</b><span>דירוג A</span></div><div><b>${reb.length}</b><span>🔄 מתאוששות</span></div><div><b>${held.length}</b><span>💼 בתיק שלך</span></div><div><b>${warn.length}</b><span>⚠️ שורט עולה</span></div></div>`;
+  // טבלה מסכמת
+  b+=`<h2>טבלה מסכמת</h2><table><thead><tr><th>#</th><th>מניה</th><th>דירוג</th><th>מהשיא</th><th>חודש</th><th>צמיחה</th><th>רווחיות</th><th>מזומן נטו</th><th>מכפיל</th><th>ממוצע 200</th><th>מצב</th><th>החלטה</th></tr></thead><tbody>`+
+   items.map((x,i)=>`<tr><td>${i+1}</td><td class="tk"><b>${esc(x.t)}</b>${(x.held||[]).length?' 💼':''}${x.rebound?' 🔄':''}${x.si&&x.si.vote<0?' ⚠️':''}<div class="nm">${esc(x.name||'')}</div></td><td style="color:${gcol(x.grade)}"><b>${x.grade||''}${x.score!=null?x.score:''}</b></td><td>${pc(x.dd)}</td><td>${pc(x.r21)}</td><td>${pc(x.rev_g)}</td><td>${pc(x.margin)}</td><td class="ltr">${m(x.net_cash)}</td><td class="ltr">${x.fpe!=null?x.fpe.toFixed(0):'—'}</td><td>${x.above200?'מעל':'מתחת'}</td><td class="sm">${esc(x.state||'')}</td><td class="sm"><b>${esc(x.verdict||'')}</b></td></tr>`).join('')+`</tbody></table>`;
+  // כרטיס לכל מניה
+  if(full) b+=`<h2>פירוט לכל מניה</h2>`;
+  if(full) items.forEach((x,i)=>{
+    const th=x.th||null, si=x.si||null;
+    b+=`<div class="card"><div class="ch"><span class="rank">${i+1}</span><b class="tk">${esc(x.t)}</b> <span class="nm">${esc(x.name||'')} · ${esc(x.sector||'')} · שווי ${m(x.mcap)}</span><span class="grade" style="color:${gcol(x.grade)}">${x.grade||''}${x.score!=null?x.score:''}</span></div>
+    <div class="verdict">${esc(x.verdict||'')}${x.rebound?' · 🔄 מתאוששת':''}${(x.held||[]).length?' · 💼 בתיק':''}${x.squeeze?' · ⚡ פוטנציאל סחיטת שורט':''}</div>
+    <div class="grid">
+      <div><span>מחיר</span><b class="ltr">${x.price!=null?x.price.toFixed(2):'—'}</b></div><div><span>שיא 52 שבועות</span><b class="ltr">${x.hi52!=null?x.hi52.toFixed(2):'—'}</b></div><div><span>מהשיא</span><b>${pc(x.dd)}</b></div><div><span>חודש אחרון</span><b>${pc(x.r21)}</b></div>
+      <div><span>צמיחת הכנסות</span><b>${pc(x.rev_g)}</b></div><div><span>רווחיות</span><b>${pc(x.margin)}</b></div><div><span>מזומן נטו</span><b class="ltr">${m(x.net_cash)}</b></div><div><span>יחס שוטף</span><b class="ltr">${x.cr!=null?x.cr.toFixed(1):'—'}</b></div>
+      <div><span>תזרים חופשי</span><b class="ltr">${m(x.fcf)}</b></div><div><span>מכפיל עתידי</span><b class="ltr">${x.fpe!=null?x.fpe.toFixed(0):'—'}</b></div><div><span>ממוצע 200</span><b>${x.above200?'מעל':'מתחת'}</b></div><div><span>מול השוק</span><b>${x.dd!=null&&Q.spy_dd!=null?(x.dd<Q.spy_dd?`נפלה ${((Q.spy_dd-x.dd)*100).toFixed(0)} נק' יותר`:'נפלה פחות'):'—'}</b></div>
+    </div>
+    <div class="line"><b>מצב:</b> ${esc(x.state||'')}</div>
+    ${x.pts?`<div class="line"><b>פירוט הציון:</b> ${Object.entries(x.pts).map(([k,v])=>`${esc(k)} ${v}`).join(' · ')}</div>`:''}
+    ${si&&si.pct!=null?`<div class="line"><b>שורט (שיטה 26):</b> ${si.vote>0?'🟢':si.vote<0?'⚠️':'⚪'} ${(si.pct*100).toFixed(1)}% מהמניות הצפות${si.chg!=null?` (${si.chg>=0?'+':''}${(si.chg*100).toFixed(0)}% מהחודש הקודם)`:''}${si.dtc!=null?` · ${(+si.dtc).toFixed(1)} ימים לכיסוי`:''} – ${esc(si.txt||'')}</div>`:''}
+    <div class="line"><b>כרטיס החלטה:</b> ${esc(x.verdict||'')}<br><span class="sm"><b>למה:</b> ${(x.dd*100).toFixed(0)}% מהשיא · צמיחה ${(x.rev_g*100).toFixed(0)}%, רווחיות ${(x.margin*100).toFixed(0)}% · ${esc(x.state||'')}<br><b>מה ישנה את ההחלטה:</b> חזרה מעל ממוצע 20 עם שבוע חיובי = קנייה הדרגתית · אובדן תנאי איכות = יציאה מהרשימה</span></div>
+    ${(x.held||[]).length?`<div class="line"><b>💼 בתיק:</b> ${x.held.map(hh=>`${esc(hh.acct)}${hh.w!=null?' '+(hh.w*100).toFixed(0)+'%':''} – ${esc(hh.action||'')}`).join(' · ')}</div>`:''}
+    <div class="line sm">ברשימה מאז ${esc(x.since||'')}${x.entry!=null?` (מחיר ${x.entry.toFixed(2)})`:''} · מאז: ${pc(x.ret_since,1)} · S&amp;P 500 באותה תקופה: ${pc(x.spy_since,1)}</div>
+    ${th?`<div class="th"><b>26 שיטות הניתוח – קונצנזוס ${th.pro}/${th.n} בעד, ${th.con} נגד</b> <span class="sm">(${Object.entries(th.by||{}).map(([k,v])=>`${esc(k)} ${v.pro}/${v.n}`).join(' · ')})</span>
+      <div class="thg">${Object.entries(th.fam||{}).map(([k,L])=>`<div><b>${esc(k)}</b>${L.map(mm=>`<div class="sm">${ic(mm.vote)} ${mm.n}. ${esc(mm.name)} – ${esc(mm.why)}</div>`).join('')}</div>`).join('')}</div></div>`:''}
+    </div>`;
+  });
+  if((Q.left||[]).length) b+=`<h2>יצאו מהרשימה (${Q.left.length})</h2><table><thead><tr><th>מניה</th><th>מאז</th><th>תשואה</th><th>מדד</th><th>סיבה</th></tr></thead><tbody>${Q.left.map(x=>`<tr><td class="tk"><b>${esc(x.t)}</b></td><td class="ltr">${esc(x.since||'')}</td><td>${pc(x.ret_since,1)}</td><td>${pc(x.spy_since,1)}</td><td class="sm">${esc(x.why||'')}</td></tr>`).join('')}</tbody></table>`;
+  b+=`<div class="foot">כלי סינון אוטומטי, לא ייעוץ השקעות. הנתונים מ-Yahoo Finance ועלולים להכיל שגיאות. ההחלטות שלך.</div>`;
+  const css=`@page{size:A4;margin:14mm 12mm}
+  body{font-family:Heebo,Arial,sans-serif;color:#14171c;background:#fff;margin:0;padding:16px;font-size:12.5px;line-height:1.45}
+  h1{font-size:24px;margin:0 0 4px}h2{font-size:16px;margin:18px 0 6px;border-bottom:2px solid #2f5bea;padding-bottom:3px;page-break-after:avoid}
+  .meta{color:#5d6673;font-size:12px;margin-bottom:10px}.box{background:#f5f6f8;border:1px solid #e3e6eb;border-radius:10px;padding:8px 12px;margin-bottom:10px}
+  .kp{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.kp div{flex:1;min-width:90px;border:1px solid #e3e6eb;border-radius:10px;padding:6px 10px;text-align:center}.kp b{display:block;font-size:20px}.kp span{font-size:11px;color:#5d6673}
+  table{width:100%;border-collapse:collapse;font-size:11px}th,td{border-bottom:1px solid #e3e6eb;padding:3px 5px;text-align:right;vertical-align:top}th{background:#eef0f3;font-weight:700}tr{page-break-inside:avoid}thead{display:table-header-group}td.sm{width:15%;font-size:10.5px}
+  .tk{font-weight:800;direction:ltr;unicode-bidi:isolate;display:inline-block}.ltr{direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums}.nm{font-size:10.5px;color:#5d6673;font-weight:400}.sm{font-size:11px;color:#3d4653}
+  .up{color:#12805c}.down{color:#c63b3b}
+  .card{border:1px solid #e3e6eb;border-radius:12px;padding:10px 12px;margin:10px 0}.ch,.grid,.line,.verdict{page-break-inside:avoid}.ch{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.rank{background:#2f5bea;color:#fff;border-radius:999px;min-width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}.grade{margin-inline-start:auto;font-size:18px;font-weight:800}
+  .verdict{font-weight:700;margin:4px 0 6px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px 10px;margin:6px 0}.grid div{border-top:1px solid #eef0f3;padding:3px 0}.grid span{display:block;font-size:10.5px;color:#5d6673}.grid b{font-size:12.5px}
+  .line{margin:4px 0;border-top:1px dashed #eef0f3;padding-top:4px}.th{margin-top:6px;border-top:1px solid #e3e6eb;padding-top:6px}.thg{display:grid;grid-template-columns:repeat(3,1fr);gap:3px 12px;margin-top:4px}.thg>div{page-break-inside:avoid}.thg .sm{font-size:10px;line-height:1.35}
+  .foot{margin-top:14px;color:#5d6673;font-size:11px;border-top:1px solid #e3e6eb;padding-top:6px}
+  .bar{position:sticky;top:0;background:#fffbe6;border-bottom:1px solid #f0d77a;padding:8px 12px;margin:-16px -16px 12px;font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}.bar button{font:inherit;font-weight:700;padding:6px 14px;border-radius:999px;border:1px solid #2f5bea;background:#2f5bea;color:#fff;cursor:pointer}
+  @media print{.bar{display:none}body{padding:0}}`;
+  const doc=`<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>איכות בהנחה ${full?'מלא':'תמציתי'} ${esc(D.asof)}</title><link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;800&display=swap" rel="stylesheet"><style>${css}</style></head><body>
+  <div class="bar"><button onclick="print()">🖨️ הדפסה / שמירה כ-PDF</button><span>בחלון ההדפסה בוחרים ביעד "שמירה כ-PDF" (Save as PDF). בטלפון: שיתוף ← הדפסה ← שמירה כ-PDF.</span></div>${b}
+  <script>window.addEventListener('load',()=>setTimeout(()=>{try{print()}catch(e){}},600));<\/script></body></html>`;
+  const url=URL.createObjectURL(new Blob([doc],{type:'text/html'}));
+  const w=window.open(url,'_blank');
+  if(!w) location.href=url;
+}
+
 // ---- מניות איכות שנפלו ----
 function qualityDipsHtml(){
   const Q=D.quality_dips; if(!Q||!Q.items) return '';
   const m=v=>v==null?'—':(Math.abs(v)>=1e9?'$'+(v/1e9).toFixed(1)+'B':'$'+(v/1e6).toFixed(0)+'M');
-  let h=`<div class="bt">💎 איכות בהנחה – חזקות פיננסית שנפלו 15%+ מהשיא</div>
+  let h=`<div class="bt" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span>💎 איכות בהנחה – חזקות פיננסית שנפלו 15%+ מהשיא</span><button type="button" class="pdfbtn" onclick="qdPdf(true)" title="טבלה מסכמת + כרטיס מפורט לכל מניה עם 26 השיטות">📄 PDF מלא</button><button type="button" class="pdfbtn" onclick="qdPdf(false)" title="טבלה מסכמת בלבד, כמה עמודים">📄 PDF תמציתי</button></div>
   <div class="sub">תנאים: שווי מעל $1B · הכנסות וצמיחה שנתית חיובית · רווחית · קופה נזילה (מזומן ≥ חוב או יחס שוטף ≥ 1.5) · ירידה של 15%+ משיא 52 שבועות. S&amp;P 500 עצמו: ${pct(Q.spy_dd)} מהשיא. נבדקו ${Q.checked} מועמדות, עברו ${Q.items.length}. ${Q.track&&Q.track.n?`מעקב: ממוצע ${pct(Q.track.avg)} מאז הכניסה לרשימה, ${pct(Q.track.ex)} מול המדד (${Q.track.n}).`:'המעקב מתחיל היום.'}</div>
   <div class="sub" style="margin-bottom:4px"><b>איך לקרוא:</b> זו רשימת קנייה פוטנציאלית לטווח ארוך, לא איתות כניסה. כניסה עדיפה כשמופיע 🔄 (חזרה מעל ממוצע 20) – לא בזמן נפילה.</div>`;
   if(!Q.items.length) return h+'<div class="sub">אין היום מניות שעומדות בכל התנאים.</div>';
