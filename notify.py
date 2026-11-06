@@ -149,6 +149,20 @@ def build_short(rep, url):
                          f"{ac['ret'] * 100:+.1f}% (S&P: {(ac.get('bench_ret') or 0) * 100:+.1f}%)"))
         acts = [f"{d['side']} {d['t']}" for d in pp.get("today", []) if d.get("t") and d.get("side") in ("קנייה", "מכירה", "מימוש חצי")]
         lines.append("🧪 <b>תיק דמה:</b> " + " · ".join(parts) + (f" · היום: {e(', '.join(acts[:6]))}" if acts else ""))
+        cd = (pp.get("rules") or {}).get("long_confirm_days", 5)
+        watch = sorted({(x["t"], x["watch"]) for ac in pp.get("accounts", []) for x in ac.get("long", []) if x.get("watch")}, key=lambda z: (-z[1], z[0]))
+        orders = [f"{o['side']} {o['t']} ×{o['qty']:g}" for o in pp.get("orders", []) if o.get("t")]
+        extra = []
+        if watch:
+            extra.append("⏳ בספירה למכירה: " + ", ".join(f"{t} {w}/{cd}" for t, w in watch))
+        if orders:
+            extra.append("פקודות פתוחות: " + ", ".join(dict.fromkeys(orders)))
+        heads = [f"{ac['name']}: {(pp.get('analysis') or {}).get(ac['code'], {}).get('head', '')}" for ac in pp.get("accounts", [])
+                 if (pp.get("analysis") or {}).get(ac.get("code"), {}).get("head")]
+        if heads:
+            extra.append("📊 " + " · ".join(heads))
+        for x in extra:
+            lines.append("   " + e(x))
     picks = rep.get("picks") or []
     if picks:
         lines.append("🏆 <b>טופ 5:</b> " + " · ".join(e(p["t"].replace(".TA", "")) for p in picks[:5]))
@@ -219,7 +233,13 @@ def main():
         repo = os.environ.get("GITHUB_REPOSITORY", "user/stock-radar")
         owner, name = repo.split("/")
         url = f"https://{owner.lower()}.github.io/{name}/"
-    msg = build_short(rep, url) if os.environ.get("TG_FULL") != "1" else build(rep, url)
+    concl = os.environ.get("REPORT_RUN_CONCLUSION", "")
+    if concl and concl != "success":          # הופעל אחרי ריצת דוח שנכשלה – מתריעים במקום לשלוח דוח ישן
+        msg = (f"⚠️ <b>הריצה הלילית של הרדאר נכשלה</b> ({html.escape(concl)}).\n"
+               f"הדוח האחרון שפורסם הוא מסגירה {html.escape(rep.get('asof', ''))}."
+               + (f'\n<a href="{html.escape(os.environ["REPORT_RUN_URL"])}">יומן הריצה</a>' if os.environ.get("REPORT_RUN_URL") else ""))
+    else:
+        msg = build_short(rep, url) if os.environ.get("TG_FULL") != "1" else build(rep, url)
     if not token:
         print("TELEGRAM_TOKEN / TELEGRAM_CHAT_ID not set – printing message only:\n")
         print(msg)

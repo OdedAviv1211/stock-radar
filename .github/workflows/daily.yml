@@ -2,7 +2,7 @@ name: Daily stock radar
 
 on:
   schedule:
-    - cron: "0 2 * * *"   # 02:00 UTC = 05:00 שעון קיץ / 04:00 שעון חורף בישראל
+    - cron: "17 2 * * *"  # 02:17 UTC = 05:17 שעון קיץ / 04:17 שעון חורף בישראל. דקה לא עגולה – GitHub מעכב פחות. הטלגרם נשלח אוטומטית בסיום
   workflow_dispatch: {}    # הרצה ידנית מהלשונית Actions
 
 permissions:
