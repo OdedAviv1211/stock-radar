@@ -155,22 +155,22 @@
  ],
  "plans": {},
  "sell_watch": {
-  "C|RGTI": 2,
-  "C|IREN": 2,
-  "P|BZAI": 2,
-  "P|RGTI": 2,
-  "P|IREN": 2,
-  "C|NVTS": 1,
-  "P|TSLA": 1
+  "C|RGTI": 3,
+  "C|IREN": 3,
+  "P|BZAI": 3,
+  "P|RGTI": 3,
+  "P|IREN": 3,
+  "C|NVTS": 2,
+  "P|TSLA": 2
  },
  "last_deposit": "2026-11",
  "closed": [],
- "last_sync": "2026-11-07T00:18:37.538494+00:00",
+ "last_sync": "2026-11-07T08:51:33.788054+00:00",
  "mirror_pending": false,
  "regime": "תיקון – מתחת לממוצע 150",
  "mirror_tries": 2,
  "mirror_done": true,
- "sw_date": "2026-11-05",
+ "sw_date": "2026-11-06",
  "history": [
   {
    "date": "2026-11-05",
@@ -185,6 +185,22 @@
      "value": 17795.088767567566,
      "contrib": 19115.394347567566,
      "bench": 18227.538697768246
+    }
+   }
+  },
+  {
+   "date": "2026-11-06",
+   "equity": 94597.61,
+   "accts": {
+    "C": {
+     "value": 63813.56162162162,
+     "contrib": 67141.17633162162,
+     "bench": 64227.00573674553
+    },
+    "P": {
+     "value": 18045.43256756757,
+     "contrib": 19115.394347567566,
+     "bench": 18284.4837169594
     }
    }
   }
