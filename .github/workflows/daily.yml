@@ -2,7 +2,7 @@ name: Daily stock radar
 
 on:
   schedule:
-    - cron: "17 2 * * *"  # 02:17 UTC = 05:17 שעון קיץ / 04:17 שעון חורף בישראל. דקה לא עגולה – GitHub מעכב פחות. הטלגרם נשלח אוטומטית בסיום
+    - cron: "17 2 * * *"  # 02:17 UTC = 05:17 שעון קיץ / 04:17 שעון חורף בישראל. GitHub מאחר הרצות מתוזמנות, לעיתים בשעות
   workflow_dispatch: {}    # הרצה ידנית מהלשונית Actions
 
 permissions:
@@ -36,11 +36,24 @@ jobs:
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
         run: python paper_trade.py
 
-      - name: Publish dashboard
+      - name: Publish dashboard (fetch + rebase + retry)
+        run: bash .github/scripts/save.sh "Daily radar $(date -u +%Y-%m-%d)" docs data
+
+      - name: Telegram brief (always – also when a step failed)
+        if: always()
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DASHBOARD_URL: ${{ vars.DASHBOARD_URL }}
+          REPORT_RUN_CONCLUSION: ${{ job.status }}
+          REPORT_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          git config user.name "stock-radar-bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add docs data
-          git commit -m "Daily radar $(date -u +%Y-%m-%d)" || echo "nothing to commit"
-          git pull --rebase
-          git push
+          python -c "import requests" 2>/dev/null || pip install -q requests
+          python notify.py
+
+      - name: Save chat id
+        if: always()
+        run: |
+          if [ -f telegram_chat_id.txt ] && [ -n "$(git status --porcelain telegram_chat_id.txt)" ]; then
+            bash .github/scripts/save.sh "Save Telegram chat id" telegram_chat_id.txt
+          fi

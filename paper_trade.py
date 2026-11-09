@@ -782,6 +782,8 @@ def main():
     if not hourly:
         nightly(api, rep, book, actions, events)
     monitor(api, book, actions, events)
+    if hourly:
+        book["last_hourly"] = now().isoformat()      # לבקרת התקינות בהודעת הבוקר
     save_book(book)
     logrow(actions + [dict(e, why=e.get("why", "ביצוע")) for e in events], rep["asof"] if not hourly else now().strftime("%Y-%m-%d %H:%M"))
     if hourly:

@@ -5,11 +5,58 @@ import html
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import requests
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, ROOT)
+from screener import tradingday  # noqa: E402 – ללא תלות בפנדס
+
+
+def _parse_utc(s, fmt="%Y-%m-%d %H:%M UTC"):
+    try:
+        return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        try:
+            return datetime.fromisoformat(s)
+        except (TypeError, ValueError):
+            return None
+
+
+def header(rep):
+    """שורת הכותרת + שורות בקרה: תאריך נתוני המסחר (עם סוף שבוע/חג), גיל הדוח, והאם הבדיקה השעתית רצה ביום המסחר האחרון."""
+    e = html.escape
+    now = datetime.now(timezone.utc)
+    note, status = tradingday.note(rep["asof"], now)
+    lines = ["📈 <b>הדוח היומי</b>", "📅 " + e(note)]
+    gen = _parse_utc(rep.get("generated", ""))
+    age_h = (now - gen).total_seconds() / 3600 if gen else None
+    if age_h is not None and age_h > 30:
+        lines.append(f"⚠️ הדוח לא התעדכן מאז {e(rep.get('generated', ''))} ({age_h:.0f} שעות) – כנראה שהריצה הלילית נכשלה (לבדוק בלשונית Actions).")
+    # הבדיקה השעתית (watch.yml): צריכה לרוץ ביום המסחר האחרון בין 13:00 UTC לבוקר שלמחרת
+    last = []
+    try:
+        w = json.load(open(os.path.join(ROOT, "data", "watch.json"), encoding="utf-8"))
+        last.append(_parse_utc(w.get("generated", "")))
+    except (OSError, ValueError):
+        pass
+    try:
+        b = json.load(open(os.path.join(ROOT, "data", "paper_book.json"), encoding="utf-8"))
+        last.append(_parse_utc(b.get("last_hourly")))
+    except (OSError, ValueError):
+        pass
+    last = max([x for x in last if x], default=None)
+    a = datetime.fromisoformat(rep["asof"]).replace(tzinfo=timezone.utc)
+    start, end = a.replace(hour=13), a.replace(hour=13) + timedelta(hours=19)
+    if now >= start.replace(hour=14):   # רק אחרי שהמסחר של אותו יום כבר התחיל
+        if last is None or not (start <= last <= end):
+            lines.append(f"⚠️ הבדיקה השעתית של תיק הדמה (watch.yml) לא רצה ביום המסחר האחרון ({e(rep['asof'])}) – "
+                         + (f"אחרונה {last.strftime('%d.%m %H:%M')} UTC" if last else "אין תיעוד") + ". GitHub מדלג על הרצות מתוזמנות – אפשר להריץ ידנית מלשונית Actions.")
+        else:
+            lines.append(f"🩺 בקרה תקינה · בדיקה שעתית אחרונה {last.strftime('%d.%m %H:%M')} UTC"
+                         + (f" · הדוח הופק לפני {age_h:.0f} שעות" if age_h is not None and age_h >= 1 else ""))
+    return lines
 
 
 def pct(x, d=1):
@@ -18,14 +65,7 @@ def pct(x, d=1):
 
 def build(rep, url):
     e = html.escape
-    lines = [f"📈 <b>הדוח היומי</b> · סגירה {e(rep['asof'])}"]
-    gen = rep.get("generated", "")
-    try:
-        age_h = (datetime.now(timezone.utc) - datetime.strptime(gen, "%Y-%m-%d %H:%M UTC").replace(tzinfo=timezone.utc)).total_seconds() / 3600
-    except ValueError:
-        age_h = 0
-    if age_h > 30:
-        lines.append(f"⚠️ הדוח לא התעדכן מאז {e(gen)} – כנראה שהריצה הלילית נכשלה (לבדוק בלשונית Actions).")
+    lines = header(rep)
     top_links = [f'🔗 <a href="{e(url)}">הדוח המלא באתר ←</a>']
     if rep.get("research_url"):
         top_links.append(f'🔬 <a href="{e(rep["research_url"])}">חדר המחקר ←</a>')
@@ -125,14 +165,7 @@ def build(rep, url):
 def build_short(rep, url):
     """סופר-תקציר: השורות התחתונות + קישור לדוח המלא."""
     e = html.escape
-    lines = [f"📈 <b>הדוח היומי</b> · סגירה {e(rep['asof'])}"]
-    gen = rep.get("generated", "")
-    try:
-        age_h = (datetime.now(timezone.utc) - datetime.strptime(gen, "%Y-%m-%d %H:%M UTC").replace(tzinfo=timezone.utc)).total_seconds() / 3600
-    except ValueError:
-        age_h = 0
-    if age_h > 30:
-        lines.append(f"⚠️ הדוח לא התעדכן מאז {e(gen)} – כנראה שהריצה הלילית נכשלה.")
+    lines = header(rep)
     dot = {3: "🔴", 2: "🟠", 1: "🔵", 0: "🟢"}
     keep = ("מה לעשות היום", "יעד ההכנסה", "סנכרון", "סטופ", "דוחות השבוע", "איכות בהנחה", "בקרה")
     ex_ = rep.get("exec") or []
@@ -236,7 +269,7 @@ def main():
     concl = os.environ.get("REPORT_RUN_CONCLUSION", "")
     if concl and concl != "success":          # הופעל אחרי ריצת דוח שנכשלה – מתריעים במקום לשלוח דוח ישן
         msg = (f"⚠️ <b>הריצה הלילית של הרדאר נכשלה</b> ({html.escape(concl)}).\n"
-               f"הדוח האחרון שפורסם הוא מסגירה {html.escape(rep.get('asof', ''))}."
+               f"הדוח האחרון שפורסם: {html.escape(tradingday.note(rep.get('asof', '2000-01-01'))[0])}."
                + (f'\n<a href="{html.escape(os.environ["REPORT_RUN_URL"])}">יומן הריצה</a>' if os.environ.get("REPORT_RUN_URL") else ""))
     else:
         msg = build_short(rep, url) if os.environ.get("TG_FULL") != "1" else build(rep, url)

@@ -8,7 +8,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
-from . import news, watch, analogs, config, data, micha, patterns, scoring, themes, theories
+from . import news, watch, analogs, config, data, micha, patterns, scoring, themes, theories, tradingday
 from .indicators import compute
 
 ROOT = data.ROOT
@@ -836,6 +836,7 @@ def run(today=None):
         c.pop("good"), c.pop("warn"), c.pop("plan")
     report = {
         "asof": asof, "generated": datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+        "data_note": tradingday.note(asof)[0], "data_status": tradingday.note(asof)[1],
         "runtime_min": (datetime.utcnow() - t0).total_seconds() / 60,
         "counts": {"universe": len(meta), "analyzed": len(feats), "eligible": len(elig), "fund": len(cand),
                    "us": len(us_t), "tase": len(tase_t)},

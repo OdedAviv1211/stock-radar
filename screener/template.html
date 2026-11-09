@@ -300,7 +300,7 @@ const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).
 })();
 
 // ---- header ----
-$('#meta').innerHTML = `נתוני סגירה של יום המסחר <b class="num">${D.asof}</b> · נסרקו <b class="num">${D.counts.analyzed.toLocaleString()}</b> מניות (<span class="num">${D.counts.us.toLocaleString()}</span> ארה"ב, <span class="num">${D.counts.tase}</span> ת"א) · <span class="num">${D.counts.eligible}</span> בשלב 2 · הופק ${esc(D.generated)}`;
+$('#meta').innerHTML = `${D.data_note?`<b${D.data_status==='stale'?' style="color:var(--warn)"':''}>${esc(D.data_note)}</b>`:`נתוני סגירה של יום המסחר <b class="num">${D.asof}</b>`} · נסרקו <b class="num">${D.counts.analyzed.toLocaleString()}</b> מניות (<span class="num">${D.counts.us.toLocaleString()}</span> ארה"ב, <span class="num">${D.counts.tase}</span> ת"א) · <span class="num">${D.counts.eligible}</span> בשלב 2 · הופק ${esc(D.generated)}`;
 if(D.research_url){const rl=$('#researchLink');rl.href=D.research_url;rl.hidden=false;}
 const inArchive = location.pathname.includes('/archive/');
 $('#arch').innerHTML = D.archive.map(d=>`<option value="${d}" ${d===D.asof?'selected':''}>${d===D.archive[0]?'היום · ':''}${d}</option>`).join('');
